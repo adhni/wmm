@@ -20,11 +20,19 @@ def filtered_data(
 
 def summary_metrics(df: pd.DataFrame) -> dict[str, str | int]:
     fastest = df.nsmallest(1, "Time_seconds").iloc[0]
+    latest_year = int(df["Year"].max())
+    latest_year_df = df.loc[df["Year"] == latest_year]
+    previous_year_df = df.loc[df["Year"] == latest_year - 1]
+    latest_entries = len(latest_year_df)
+    previous_entries = len(previous_year_df)
     return {
         "rows": len(df),
         "runners": int(df["Name"].nunique()),
         "marathons": int(df["Marathon"].nunique()),
         "year_range": f"{int(df['Year'].min())}-{int(df['Year'].max())}",
+        "latest_year": latest_year,
+        "latest_entries": latest_entries,
+        "entry_delta": latest_entries - previous_entries if previous_entries else latest_entries,
         "fastest_label": (
             f"{fastest['Name']} | {fastest['Marathon']} {int(fastest['Year'])} | "
             f"{fastest['Time']}"
@@ -119,6 +127,73 @@ def yearly_leaders(df: pd.DataFrame) -> pd.DataFrame:
     return leaders
 
 
+def latest_year_snapshot(df: pd.DataFrame) -> tuple[int, pd.DataFrame]:
+    latest_year = int(df["Year"].max())
+    snapshot = (
+        df.loc[df["Year"] == latest_year]
+        .groupby("Marathon", as_index=False)
+        .agg(
+            Runner_Count=("Marathon", "size"),
+            Unique_Runners=("Name", "nunique"),
+            Median_Time_Seconds=("Time_seconds", "median"),
+            Fastest_Time_Seconds=("Time_seconds", "min"),
+        )
+        .sort_values("Runner_Count", ascending=False)
+        .reset_index(drop=True)
+    )
+    snapshot["Median_Time"] = snapshot["Median_Time_Seconds"].map(format_seconds_to_hm)
+    snapshot["Fastest_Time"] = snapshot["Fastest_Time_Seconds"].map(format_seconds_to_hms)
+    return latest_year, snapshot
+
+
+def marathon_rankings(df: pd.DataFrame) -> pd.DataFrame:
+    rankings = runner_growth(df)
+    rankings["Rank"] = rankings.groupby("Year")["Runner_Count"].rank(
+        method="dense", ascending=False
+    )
+    rankings["Rank"] = rankings["Rank"].astype(int)
+    return rankings.sort_values(["Year", "Rank", "Marathon"]).reset_index(drop=True)
+
+
+def finish_time_spectrum(df: pd.DataFrame, bin_minutes: int = 15) -> pd.DataFrame:
+    min_seconds = 2 * 3600 + 30 * 60
+    max_seconds = 8 * 3600
+    step = bin_minutes * 60
+    bins = list(range(min_seconds, max_seconds + step, step))
+    labels = [
+        f"{format_seconds_to_hm(left)}-{format_seconds_to_hm(right)}"
+        for left, right in zip(bins[:-1], bins[1:])
+    ]
+    spectrum = df.copy()
+    spectrum["Time_Bin"] = pd.cut(
+        spectrum["Time_seconds"],
+        bins=bins,
+        labels=labels,
+        right=False,
+        include_lowest=True,
+    )
+    spectrum = spectrum.dropna(subset=["Time_Bin"])
+    spectrum = (
+        spectrum.groupby(["Marathon", "Time_Bin"], as_index=False, observed=True)
+        .size()
+        .rename(columns={"size": "Runner_Count"})
+    )
+    spectrum["Time_Bin"] = spectrum["Time_Bin"].astype(str)
+    return spectrum
+
+
+def star_distribution(df: pd.DataFrame) -> pd.DataFrame:
+    stars = (
+        df.groupby("Name", as_index=False)
+        .agg(Stars=("Marathon", "nunique"))
+        .groupby("Stars", as_index=False)
+        .size()
+        .rename(columns={"size": "Runner_Count"})
+        .sort_values("Stars")
+    )
+    return stars
+
+
 def runner_options(df: pd.DataFrame) -> list[str]:
     counts = (
         df.groupby("Name", as_index=False)
@@ -150,15 +225,25 @@ def runner_summary(df: pd.DataFrame, runner_name: str) -> dict[str, str | int]:
     return {
         "entries": len(runner_df),
         "stars": int(runner_df["Marathon"].nunique()),
+        "years_active": int(runner_df["Year"].nunique()),
         "best_time": str(best["Time"]),
-        "best_result": f"{best['Marathon']} {int(best['Year'])} | place {int(best['Place'])}",
-        "latest_result": f"{latest['Marathon']} {int(latest['Year'])} | {latest['Time']}",
+        "best_result": (
+            f"{best['Marathon']} {int(best['Year'])} | "
+            f"indo #{int(best['Indo_Place'])} | place {int(best['Place'])}"
+        ),
+        "latest_result": (
+            f"{latest['Marathon']} {int(latest['Year'])} | "
+            f"{latest['Time']} | indo #{int(latest['Indo_Place'])}"
+        ),
     }
 
 
 def runner_results(df: pd.DataFrame, runner_name: str) -> pd.DataFrame:
     runner_df = (
-        df.loc[df["Name"] == runner_name, ["Year", "Marathon", "Time", "Place", "Time_seconds"]]
+        df.loc[
+            df["Name"] == runner_name,
+            ["Year", "Marathon", "Time", "Indo_Place", "Place", "Time_seconds"],
+        ]
         .sort_values(["Year", "Marathon", "Time_seconds"])
         .reset_index(drop=True)
     )
@@ -170,7 +255,7 @@ def runner_best_by_marathon(df: pd.DataFrame, runner_name: str) -> pd.DataFrame:
     best = (
         runner_df.sort_values("Time_seconds")
         .groupby("Marathon", as_index=False)
-        .first()[["Marathon", "Year", "Time", "Place"]]
+        .first()[["Marathon", "Year", "Time", "Indo_Place", "Place"]]
         .sort_values(["Time", "Marathon"])
         .reset_index(drop=True)
     )
@@ -182,7 +267,7 @@ def runner_progression(df: pd.DataFrame, runner_name: str) -> pd.DataFrame:
     progression = (
         runner_df.sort_values("Time_seconds")
         .groupby("Year", as_index=False)
-        .first()[["Year", "Marathon", "Time_seconds", "Time"]]
+        .first()[["Year", "Marathon", "Time_seconds", "Time", "Indo_Place"]]
         .sort_values("Year")
         .reset_index(drop=True)
     )

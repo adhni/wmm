@@ -31,4 +31,10 @@ def load_data(path: Path = DATA_PATH) -> pd.DataFrame:
     df["Place"] = df["Place"].astype(int)
     df["Time_seconds"] = pd.to_timedelta(df["Time"]).dt.total_seconds().astype(int)
     df["Time_HHMM"] = df["Time_seconds"].map(format_seconds_to_hm)
-    return df.sort_values(["Year", "Marathon", "Time_seconds", "Name"]).reset_index(drop=True)
+    df = df.sort_values(["Year", "Marathon", "Time_seconds", "Name"]).reset_index(drop=True)
+    df["Indo_Place"] = (
+        df.groupby(["Year", "Marathon"])["Time_seconds"]
+        .rank(method="dense", ascending=True)
+        .astype(int)
+    )
+    return df
