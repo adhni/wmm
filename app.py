@@ -34,7 +34,7 @@ from src.wmm.metrics import (
     runner_milestones,
     runner_name_from_option,
     runner_next_goals,
-    runner_options,
+    runner_search_options,
     runner_personal_story,
     runner_progression,
     runner_rarity_summary,
@@ -691,8 +691,12 @@ def main() -> None:
     )
     metric_5.metric("View Range", metrics["year_range"])
 
-    pulse_tab, stars_tab, fame_tab, profiles_tab, compare_tab, runner_tab, data_tab = st.tabs(
-        ["Pulse", "Stars", "Hall of Fame", "Marathon Profiles", "Compare", "Runner Lab", "Data Vault"]
+    render_story_card(
+        "Start with Runner Lab. It now searches the full dataset by partial name, so you can type a first name like ADHNI and jump straight to the personal view."
+    )
+
+    runner_tab, pulse_tab, stars_tab, fame_tab, profiles_tab, compare_tab, data_tab = st.tabs(
+        ["Runner Lab", "Pulse", "Stars", "Hall of Fame", "Marathon Profiles", "Compare", "Data Vault"]
     )
 
     with pulse_tab:
@@ -879,23 +883,30 @@ def main() -> None:
             st.dataframe(fastest_year, use_container_width=True, hide_index=True)
 
     with runner_tab:
-        options = runner_options(filtered)
+        st.caption("Runner Lab searches the full dataset. The sidebar lens still shapes the other tabs.")
+        runner_search = st.text_input(
+            "Find runner by name",
+            placeholder="Try: ADHNI",
+            key="runner-search-query",
+        )
+        options = runner_search_options(df, runner_search, limit=80)
         if not options:
-            st.warning("No runners match the current filters.")
+            st.warning("No runners match that search. Try a broader partial name.")
         else:
-            selected_runner_option = st.selectbox("Search runner", options, index=0)
+            selected_runner_option = st.selectbox("Matching runners", options, index=0)
             runner_name = runner_name_from_option(selected_runner_option)
-            runner_stats = runner_summary(filtered, runner_name)
-            runner_df = runner_results(filtered, runner_name)
-            runner_best = runner_best_by_marathon(filtered, runner_name)
-            runner_progress = runner_progression(filtered, runner_name)
-            runner_breakdown = runner_marathon_breakdown(filtered, runner_name)
-            runner_road = roadmap.loc[roadmap["Name"] == runner_name].iloc[0]
-            runner_milestone_table = runner_milestones(filtered, runner_name, selected_marathons)
-            runner_story = runner_personal_story(filtered, runner_name, selected_marathons)
-            runner_rarity = runner_rarity_summary(filtered, runner_name)
-            runner_goals = runner_next_goals(filtered, runner_name, selected_marathons)
-            runner_badge_list = runner_badges(filtered, runner_name, selected_marathons)
+            runner_roadmap = road_to_stars(df, marathons)
+            runner_stats = runner_summary(df, runner_name)
+            runner_df = runner_results(df, runner_name)
+            runner_best = runner_best_by_marathon(df, runner_name)
+            runner_progress = runner_progression(df, runner_name)
+            runner_breakdown = runner_marathon_breakdown(df, runner_name)
+            runner_road = runner_roadmap.loc[runner_roadmap["Name"] == runner_name].iloc[0]
+            runner_milestone_table = runner_milestones(df, runner_name, marathons)
+            runner_story = runner_personal_story(df, runner_name, marathons)
+            runner_rarity = runner_rarity_summary(df, runner_name)
+            runner_goals = runner_next_goals(df, runner_name, marathons)
+            runner_badge_list = runner_badges(df, runner_name, marathons)
             review_year_options = sorted(runner_df["Year"].unique(), reverse=True)
             runner_slug = runner_name.lower().replace(" ", "_")
             passport_png = runner_passport_card(runner_name, runner_stats, runner_road, runner_story)
@@ -903,7 +914,14 @@ def main() -> None:
             goals_png = runner_goals_card(runner_name, runner_goals, runner_rarity)
 
             st.markdown(f"## {runner_name}")
-            st.caption("A personal achievement view built from the visible WMM results in the current lens.")
+            current_lens_rows = int((filtered["Name"] == runner_name).sum())
+            if current_lens_rows:
+                st.caption(
+                    f"A personal achievement view from the full dataset. {current_lens_rows} finish"
+                    f"{'es' if current_lens_rows != 1 else ''} for this runner also sit inside the current dashboard lens."
+                )
+            else:
+                st.caption("A personal achievement view from the full dataset. This runner sits outside the current dashboard lens.")
 
             render_passport_card(runner_name, runner_stats, runner_road, runner_story)
 
@@ -948,7 +966,7 @@ def main() -> None:
                 index=0,
                 key=f"review-year-{runner_name}",
             )
-            runner_review = runner_year_in_review(filtered, runner_name, int(selected_review_year), selected_marathons)
+            runner_review = runner_year_in_review(df, runner_name, int(selected_review_year), marathons)
             season_results = (
                 runner_df.loc[runner_df["Year"] == selected_review_year, ["Marathon", "Time", "Indo_Place", "Place"]]
                 .reset_index(drop=True)

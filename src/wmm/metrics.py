@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 
 import pandas as pd
 
@@ -517,7 +518,7 @@ def runner_milestones(df: pd.DataFrame, runner_name: str, marathon_universe: lis
     return result
 
 
-def runner_options(df: pd.DataFrame) -> list[str]:
+def _runner_directory(df: pd.DataFrame) -> pd.DataFrame:
     counts = (
         df.groupby("Name", as_index=False)
         .agg(
@@ -534,7 +535,31 @@ def runner_options(df: pd.DataFrame) -> list[str]:
         lambda row: f"{row['Name']} ({int(row['Entries'])} entries, {int(row['Stars'])} stars)",
         axis=1,
     )
-    return counts["Label"].tolist()
+    return counts
+
+
+def runner_options(df: pd.DataFrame) -> list[str]:
+    return _runner_directory(df)["Label"].tolist()
+
+
+def runner_search_options(df: pd.DataFrame, query: str, limit: int = 50) -> list[str]:
+    directory = _runner_directory(df)
+    search = query.strip().upper()
+    if not search:
+        return directory["Label"].head(limit).tolist()
+
+    escaped = re.escape(search)
+    matches = directory.loc[directory["Name"].str.contains(escaped, case=False, regex=True)].copy()
+    if matches.empty:
+        return []
+
+    matches["Prefix_Match"] = matches["Name"].str.startswith(search).astype(int)
+    matches["Word_Match"] = matches["Name"].str.contains(rf"\b{escaped}", case=False, regex=True).astype(int)
+    matches = matches.sort_values(
+        ["Prefix_Match", "Word_Match", "Entries", "Stars", "Best_Time_Seconds", "Name"],
+        ascending=[False, False, False, False, True, True],
+    )
+    return matches["Label"].head(limit).tolist()
 
 
 def runner_name_from_option(option: str) -> str:
