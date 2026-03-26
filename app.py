@@ -4,6 +4,11 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+from src.wmm.cards import (
+    runner_goals_card,
+    runner_milestones_card,
+    runner_passport_card,
+)
 from src.wmm.data import load_data
 from src.wmm.metrics import (
     active_years_leaderboard,
@@ -889,6 +894,10 @@ def main() -> None:
             runner_rarity = runner_rarity_summary(filtered, runner_name)
             runner_goals = runner_next_goals(filtered, runner_name, selected_marathons)
             runner_badge_list = runner_badges(filtered, runner_name, selected_marathons)
+            runner_slug = runner_name.lower().replace(" ", "_")
+            passport_png = runner_passport_card(runner_name, runner_stats, runner_road, runner_story)
+            journey_png = runner_milestones_card(runner_name, runner_milestone_table, runner_badge_list)
+            goals_png = runner_goals_card(runner_name, runner_goals, runner_rarity)
 
             st.markdown(f"## {runner_name}")
             st.caption("A personal achievement view built from the visible WMM results in the current lens.")
@@ -929,6 +938,37 @@ def main() -> None:
                         str(goal_row["Why"]),
                     )
 
+            section_label("Share Cards")
+            st.subheader("Download achievement cards for this runner")
+            card_tab_1, card_tab_2, card_tab_3 = st.tabs(["Passport Card", "Journey Card", "Next Goals Card"])
+
+            with card_tab_1:
+                st.image(passport_png, use_container_width=True)
+                st.download_button(
+                    "Download Passport Card",
+                    data=passport_png,
+                    file_name=f"{runner_slug}_passport_card.png",
+                    mime="image/png",
+                )
+
+            with card_tab_2:
+                st.image(journey_png, use_container_width=True)
+                st.download_button(
+                    "Download Journey Card",
+                    data=journey_png,
+                    file_name=f"{runner_slug}_journey_card.png",
+                    mime="image/png",
+                )
+
+            with card_tab_3:
+                st.image(goals_png, use_container_width=True)
+                st.download_button(
+                    "Download Next Goals Card",
+                    data=goals_png,
+                    file_name=f"{runner_slug}_next_goals_card.png",
+                    mime="image/png",
+                )
+
             left, right = st.columns(2)
             with left:
                 section_label("Progression")
@@ -961,7 +1001,7 @@ def main() -> None:
                 st.download_button(
                     "Download Runner Log",
                     data=to_csv_bytes(runner_df),
-                    file_name=f"{runner_name.lower().replace(' ', '_')}_results.csv",
+                    file_name=f"{runner_slug}_results.csv",
                     mime="text/csv",
                 )
 
