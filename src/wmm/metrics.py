@@ -826,6 +826,137 @@ def runner_next_goals(
     return pd.DataFrame(goals)
 
 
+def runner_year_in_review(
+    df: pd.DataFrame,
+    runner_name: str,
+    year: int,
+    marathon_universe: list[str],
+) -> dict[str, object]:
+    runner_df = (
+        df.loc[df["Name"] == runner_name]
+        .sort_values(["Year", "Time_seconds", "Marathon"])
+        .reset_index(drop=True)
+    )
+    season_df = runner_df.loc[runner_df["Year"] == year].copy()
+    if season_df.empty:
+        raise ValueError(f"No visible results for {runner_name} in {year}")
+
+    prior_df = runner_df.loc[runner_df["Year"] < year].copy()
+    through_year_df = runner_df.loc[runner_df["Year"] <= year].copy()
+
+    season_best = season_df.nsmallest(1, "Time_seconds").iloc[0]
+    season_best_seconds = int(season_best["Time_seconds"])
+    best_indo_place = int(season_df["Indo_Place"].min())
+    raced_marathons = [marathon for marathon in marathon_universe if marathon in set(season_df["Marathon"].unique())]
+    new_majors = [marathon for marathon in raced_marathons if marathon not in set(prior_df["Marathon"].unique())]
+    stars_after = int(through_year_df["Marathon"].nunique())
+    missing_after = [marathon for marathon in marathon_universe if marathon not in set(through_year_df["Marathon"].unique())]
+
+    if prior_df.empty:
+        pb_status = "Visible debut season in this lens."
+        year_delta = "No earlier visible season to compare against."
+    else:
+        prior_career_best = int(prior_df["Time_seconds"].min())
+        if season_best_seconds < prior_career_best:
+            pb_status = f"New visible career best by {format_seconds_delta(prior_career_best - season_best_seconds)}."
+        elif season_best_seconds == prior_career_best:
+            pb_status = "Matched your visible career best."
+        else:
+            pb_status = f"Finished {format_seconds_delta(season_best_seconds - prior_career_best)} off your visible career best."
+
+        previous_year = int(prior_df["Year"].max())
+        previous_year_best = int(prior_df.loc[prior_df["Year"] == previous_year, "Time_seconds"].min())
+        if season_best_seconds < previous_year_best:
+            year_delta = f"{format_seconds_delta(previous_year_best - season_best_seconds)} faster than your {previous_year} season best."
+        elif season_best_seconds == previous_year_best:
+            year_delta = f"Matched your {previous_year} season best."
+        else:
+            year_delta = f"{format_seconds_delta(season_best_seconds - previous_year_best)} slower than your {previous_year} season best."
+
+    if stars_after == len(marathon_universe):
+        star_status = "Full visible set complete"
+    elif stars_after == len(marathon_universe) - 1 and missing_after:
+        star_status = f"One away: {missing_after[0]}"
+    else:
+        star_status = f"{stars_after} of {len(marathon_universe)} visible stars"
+
+    season_story_parts = [
+        (
+            f"In {year}, you logged {len(season_df)} visible finish"
+            f"{'es' if len(season_df) != 1 else ''} across {', '.join(raced_marathons)}."
+        ),
+        (
+            f"Your season best was {season_best['Time']} at {season_best['Marathon']}, "
+            f"good for indo #{int(season_best['Indo_Place'])}."
+        ),
+        (
+            f"You added {', '.join(new_majors)} to your passport."
+            if new_majors
+            else "This season added depth rather than a new major."
+        ),
+        f"{pb_status} {year_delta}",
+        f"You finished the year with {stars_after} visible star{'s' if stars_after != 1 else ''}.",
+    ]
+    story = " ".join(season_story_parts)
+
+    milestones = runner_milestones(df, runner_name, marathon_universe)
+    season_marks = milestones.loc[milestones["Year"] == year, "Milestone"].drop_duplicates().tolist()
+
+    highlights: list[str] = []
+    if prior_df.empty:
+        highlights.append("Visible debut season.")
+    if new_majors:
+        highlights.append(
+            f"Added {', '.join(new_majors)}."
+        )
+    else:
+        highlights.append(
+            f"Stayed in depth mode across {', '.join(raced_marathons)}."
+        )
+    highlights.append(pb_status.rstrip("."))
+    if stars_after == len(marathon_universe):
+        highlights.append("Closed the full visible set.")
+    else:
+        highlights.append(f"Finished the year on {stars_after} visible stars.")
+    if best_indo_place <= 10:
+        highlights.append(f"Cracked the top 10 Indo field at #{best_indo_place}.")
+    else:
+        highlights.append(f"Best Indo placing of the season: #{best_indo_place}.")
+    for mark in season_marks:
+        sentence = f"Unlocked {mark.lower()}."
+        if sentence not in highlights:
+            highlights.append(sentence)
+
+    unique_highlights: list[str] = []
+    seen: set[str] = set()
+    for item in highlights:
+        if item not in seen:
+            unique_highlights.append(item)
+            seen.add(item)
+
+    result_lines = [
+        f"{row['Marathon']} • {row['Time']} • indo #{int(row['Indo_Place'])}"
+        for _, row in season_df.sort_values(["Time_seconds", "Marathon"]).iterrows()
+    ]
+
+    return {
+        "Year": year,
+        "Finishes": int(len(season_df)),
+        "Marathons": ", ".join(raced_marathons),
+        "New_Stars": len(new_majors),
+        "New_Majors": ", ".join(new_majors) if new_majors else "None",
+        "Best_Time": str(season_best["Time"]),
+        "Best_Indo_Place": best_indo_place,
+        "Stars_After_Year": stars_after,
+        "Star_Status": star_status,
+        "Season_PB_Status": pb_status.rstrip("."),
+        "Year_Delta": year_delta.rstrip("."),
+        "Story": story,
+        "Highlights": unique_highlights[:5],
+        "Results": result_lines[:4],
+    }
+
+
 def runner_results(df: pd.DataFrame, runner_name: str) -> pd.DataFrame:
     runner_df = (
         df.loc[

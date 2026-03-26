@@ -8,6 +8,7 @@ from src.wmm.cards import (
     runner_goals_card,
     runner_milestones_card,
     runner_passport_card,
+    runner_year_review_card,
 )
 from src.wmm.data import load_data
 from src.wmm.metrics import (
@@ -39,6 +40,7 @@ from src.wmm.metrics import (
     runner_rarity_summary,
     runner_results,
     runner_summary,
+    runner_year_in_review,
     star_leaderboard,
     star_status_summary,
     star_distribution,
@@ -894,6 +896,7 @@ def main() -> None:
             runner_rarity = runner_rarity_summary(filtered, runner_name)
             runner_goals = runner_next_goals(filtered, runner_name, selected_marathons)
             runner_badge_list = runner_badges(filtered, runner_name, selected_marathons)
+            review_year_options = sorted(runner_df["Year"].unique(), reverse=True)
             runner_slug = runner_name.lower().replace(" ", "_")
             passport_png = runner_passport_card(runner_name, runner_stats, runner_road, runner_story)
             journey_png = runner_milestones_card(runner_name, runner_milestone_table, runner_badge_list)
@@ -938,9 +941,42 @@ def main() -> None:
                         str(goal_row["Why"]),
                     )
 
+            section_label("Year In Review")
+            selected_review_year = st.selectbox(
+                "Season to review",
+                review_year_options,
+                index=0,
+                key=f"review-year-{runner_name}",
+            )
+            runner_review = runner_year_in_review(filtered, runner_name, int(selected_review_year), selected_marathons)
+            season_results = (
+                runner_df.loc[runner_df["Year"] == selected_review_year, ["Marathon", "Time", "Indo_Place", "Place"]]
+                .reset_index(drop=True)
+            )
+            review_png = runner_year_review_card(runner_name, runner_review)
+            st.subheader(f"{selected_review_year} season snapshot")
+            render_story_card(str(runner_review["Story"]))
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Visible Finishes", int(runner_review["Finishes"]))
+            c2.metric("New Stars", int(runner_review["New_Stars"]))
+            c3.metric("Season Best", str(runner_review["Best_Time"]))
+            c4.metric("Best Indo Rank", f"#{runner_review['Best_Indo_Place']}")
+
+            left, right = st.columns([1.2, 1])
+            with left:
+                st.caption("Visible results in the selected season")
+                st.dataframe(season_results, use_container_width=True, hide_index=True)
+            with right:
+                st.caption("Season highlights")
+                for highlight in list(runner_review["Highlights"]):
+                    st.markdown(f"- {highlight}")
+
             section_label("Share Cards")
             st.subheader("Download achievement cards for this runner")
-            card_tab_1, card_tab_2, card_tab_3 = st.tabs(["Passport Card", "Journey Card", "Next Goals Card"])
+            card_tab_1, card_tab_2, card_tab_3, card_tab_4 = st.tabs(
+                ["Passport Card", "Journey Card", "Next Goals Card", "Year In Review"]
+            )
 
             with card_tab_1:
                 st.image(passport_png, use_container_width=True)
@@ -966,6 +1002,15 @@ def main() -> None:
                     "Download Next Goals Card",
                     data=goals_png,
                     file_name=f"{runner_slug}_next_goals_card.png",
+                    mime="image/png",
+                )
+
+            with card_tab_4:
+                st.image(review_png, use_container_width=True)
+                st.download_button(
+                    f"Download {selected_review_year} Year In Review Card",
+                    data=review_png,
+                    file_name=f"{runner_slug}_{selected_review_year}_year_in_review_card.png",
                     mime="image/png",
                 )
 

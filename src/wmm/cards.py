@@ -243,3 +243,49 @@ def runner_goals_card(
         y += 100
 
     return _to_png_bytes(image)
+
+
+def runner_year_review_card(
+    runner_name: str,
+    review: dict[str, object],
+) -> bytes:
+    image = _make_background()
+    draw = ImageDraw.Draw(image)
+
+    draw.text((118, 116), "YEAR IN REVIEW", font=SECTION_FONT, fill=ACCENT_GOLD)
+    draw.text((118, 158), runner_name, font=TITLE_FONT, fill=TEXT_LIGHT)
+    draw.text(
+        (118, 262),
+        f"{review['Year']} season snapshot from the visible WMM lens",
+        font=BODY_FONT,
+        fill=TEXT_LIGHT,
+    )
+
+    _pill(draw, (118, 430, 470, 560), "Visible Finishes", str(review["Finishes"]))
+    _pill(draw, (500, 430, 962, 560), "Season Best", str(review["Best_Time"]))
+    _pill(draw, (118, 584, 540, 714), "Best Indo Rank", f"#{review['Best_Indo_Place']}")
+    _pill(draw, (570, 584, 962, 714), "Stars After Year", str(review["Stars_After_Year"]))
+
+    draw.text((118, 782), "SEASON STORY", font=SECTION_FONT, fill=ACCENT)
+    story_lines = _clamp_lines(str(review["Story"]), 56, 3)
+    draw.rounded_rectangle((118, 820, 962, 958), radius=22, fill="#ffffff", outline="#eadcc7", width=2)
+    _draw_lines(draw, 148, 850, story_lines, SMALL_FONT, TEXT_DARK, 6)
+
+    draw.text((118, 996), "SEASON HIGHLIGHTS", font=SECTION_FONT, fill=ACCENT)
+    y = 1038
+    for highlight in list(review["Highlights"])[:2]:
+        detail_lines = _clamp_lines(str(highlight), 48, 2)
+        box_height = 54 + _text_height(draw, detail_lines, SMALL_FONT, 4)
+        draw.rounded_rectangle((118, y, 962, y + box_height), radius=18, fill="#fff6eb", outline="#f0d6b4", width=2)
+        _draw_lines(draw, 146, y + 18, detail_lines, SMALL_FONT, ACCENT_DEEP, 4)
+        y += box_height + 12
+
+    draw.text((118, 1210), "VISIBLE RESULTS", font=SECTION_FONT, fill=ACCENT)
+    result_lines = list(review["Results"])[:2]
+    if not result_lines:
+        result_lines = ["No visible results in this lens."]
+    for idx, line in enumerate(result_lines):
+        row_y = 1244 + idx * 44
+        draw.text((146, row_y), str(line), font=TINY_BOLD, fill=ACCENT_DEEP)
+
+    return _to_png_bytes(image)
