@@ -2,6 +2,8 @@
 
 Streamlit dashboard for exploring Indonesian runners in the World Marathon Majors dataset.
 
+Live app: https://wmm-id.streamlit.app/
+
 ## Data
 
 - `raw_data.csv`: source data copied from the original `posts/WMM` project
@@ -33,28 +35,6 @@ python3 -m streamlit run app.py
 - `src/wmm/metrics.py`: reusable analysis tables for the dashboard
 - `.streamlit/config.toml`: Streamlit theme and server config
 
-## Deploy To Streamlit Community Cloud
+## Live Deployment
 
-According to the current official Streamlit docs, Community Cloud deploys directly from a GitHub repository. You choose the repository, branch, and entrypoint file, and Community Cloud runs the app from the repo root. It also supports selecting a Python version in Advanced settings, and currently defaults to Python 3.12.
-
-Recommended setup for this repo:
-
-- Repository root contains `requirements.txt`
-- Entrypoint file is `app.py`
-- Streamlit config is in `.streamlit/config.toml`
-
-Deployment steps:
-
-1. Push this repo to GitHub.
-2. Sign in to Streamlit Community Cloud and connect GitHub.
-3. Click `Create app`.
-4. Select this repository and branch.
-5. Set the entrypoint file to `app.py`.
-6. Optionally choose a custom subdomain.
-7. In Advanced settings, confirm the Python version if needed.
-8. Deploy.
-
-Official docs used:
-
-- https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy
-- https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/file-organization
+- Streamlit Community Cloud: https://wmm-id.streamlit.app/
