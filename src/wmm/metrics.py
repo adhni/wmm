@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
 from .data import format_seconds_delta, format_seconds_to_hm, format_seconds_to_hms
@@ -542,12 +544,23 @@ def runner_name_from_option(option: str) -> str:
 def runner_summary(df: pd.DataFrame, runner_name: str) -> dict[str, str | int]:
     runner_df = df.loc[df["Name"] == runner_name].copy()
     best = runner_df.nsmallest(1, "Time_seconds").iloc[0]
-    latest = runner_df.sort_values(["Year", "Time_seconds"]).iloc[-1]
+    latest = runner_df.sort_values(["Year", "Time_seconds", "Marathon"]).iloc[-1]
+    debut = runner_df.sort_values(["Year", "Time_seconds", "Marathon"]).iloc[0]
+    favorite = (
+        runner_df.groupby("Marathon", as_index=False)
+        .agg(Entries=("Marathon", "size"), Best_Time_Seconds=("Time_seconds", "min"))
+        .sort_values(["Entries", "Best_Time_Seconds", "Marathon"], ascending=[False, True, True])
+        .iloc[0]
+    )
     return {
         "entries": len(runner_df),
         "stars": int(runner_df["Marathon"].nunique()),
         "years_active": int(runner_df["Year"].nunique()),
+        "debut_year": int(debut["Year"]),
+        "latest_year": int(latest["Year"]),
         "best_time": str(best["Time"]),
+        "best_indo_place": int(runner_df["Indo_Place"].min()),
+        "favorite_marathon": str(favorite["Marathon"]),
         "best_result": (
             f"{best['Marathon']} {int(best['Year'])} | "
             f"indo #{int(best['Indo_Place'])} | place {int(best['Place'])}"
@@ -557,6 +570,260 @@ def runner_summary(df: pd.DataFrame, runner_name: str) -> dict[str, str | int]:
             f"{latest['Time']} | indo #{int(latest['Indo_Place'])}"
         ),
     }
+
+
+def runner_personal_story(
+    df: pd.DataFrame,
+    runner_name: str,
+    marathon_universe: list[str],
+) -> str:
+    summary = runner_summary(df, runner_name)
+    road = road_to_stars(df, marathon_universe)
+    road_row = road.loc[road["Name"] == runner_name].iloc[0]
+    best = df.loc[df["Name"] == runner_name].nsmallest(1, "Time_seconds").iloc[0]
+
+    if road_row["Missing_Majors"] == "None":
+        road_text = "You have completed the full visible major set."
+    else:
+        road_text = f"You are missing {road_row['Missing_Majors']} to complete this lens."
+
+    return (
+        f"You are a {summary['stars']}-star runner with {summary['entries']} visible finishes "
+        f"across {summary['years_active']} active years. Your best visible day was "
+        f"{best['Marathon']} {int(best['Year'])} in {best['Time']}, where you ranked "
+        f"indo #{int(best['Indo_Place'])}. {summary['favorite_marathon']} is the course "
+        f"where you show up most often. {road_text}"
+    )
+
+
+def runner_rarity_summary(df: pd.DataFrame, runner_name: str) -> pd.DataFrame:
+    runner_rollup = (
+        df.groupby("Name", as_index=False)
+        .agg(
+            Stars=("Marathon", "nunique"),
+            Entries=("Name", "size"),
+            Active_Years=("Year", "nunique"),
+            Best_Time_Seconds=("Time_seconds", "min"),
+        )
+    )
+    row = runner_rollup.loc[runner_rollup["Name"] == runner_name].iloc[0]
+    total = len(runner_rollup)
+
+    def rarity(metric: str, value: float, higher_is_better: bool) -> dict[str, str]:
+        series = runner_rollup[metric]
+        if higher_is_better:
+            rank = int((series > value).sum() + 1)
+        else:
+            rank = int((series < value).sum() + 1)
+        top_pct = max(1, math.ceil(rank * 100 / total))
+        label = f"Top {top_pct}%"
+        if metric == "Best_Time_Seconds":
+            display_value = format_seconds_to_hms(value)
+            metric_label = "Speed"
+        elif metric == "Active_Years":
+            display_value = str(int(value))
+            metric_label = "Longevity"
+        else:
+            display_value = str(int(value))
+            metric_label = metric.replace("_", " ")
+        return {
+            "Metric": metric_label,
+            "Value": display_value,
+            "Standing": label,
+            "Rank": f"#{rank} of {total:,}",
+        }
+
+    rows = [
+        rarity("Stars", row["Stars"], True),
+        rarity("Entries", row["Entries"], True),
+        rarity("Active_Years", row["Active_Years"], True),
+        rarity("Best_Time_Seconds", row["Best_Time_Seconds"], False),
+    ]
+    return pd.DataFrame(rows)
+
+
+def runner_badges(
+    df: pd.DataFrame,
+    runner_name: str,
+    marathon_universe: list[str],
+) -> list[dict[str, str]]:
+    runner_df = df.loc[df["Name"] == runner_name].copy()
+    summary = runner_summary(df, runner_name)
+    road = road_to_stars(df, marathon_universe)
+    road_row = road.loc[road["Name"] == runner_name].iloc[0]
+    breakdown = runner_marathon_breakdown(df, runner_name)
+    badges: list[dict[str, str]] = [
+        {
+            "title": "First Stamp",
+            "detail": f"Visible debut in {summary['debut_year']}",
+        }
+    ]
+
+    if summary["entries"] >= 2:
+        badges.append(
+            {
+                "title": "Repeat Finisher",
+                "detail": f"{summary['entries']} visible finishes",
+            }
+        )
+    if summary["stars"] >= 2:
+        badges.append(
+            {
+                "title": "Multi-Major",
+                "detail": f"{summary['stars']} majors completed",
+            }
+        )
+    if summary["stars"] >= 3:
+        badges.append(
+            {
+                "title": "Triple Star",
+                "detail": f"{road_row['Completed_Majors']}",
+            }
+        )
+    if road_row["Status"] == "One away":
+        badges.append(
+            {
+                "title": "On The Brink",
+                "detail": f"Only {road_row['Missing_Majors']} missing",
+            }
+        )
+    if road_row["Status"] == "Complete":
+        badges.append(
+            {
+                "title": "Full Set",
+                "detail": "Completed every visible major in this lens",
+            }
+        )
+    if (runner_df["Time_seconds"] < 4 * 3600).any():
+        count = int((runner_df["Time_seconds"] < 4 * 3600).sum())
+        badges.append(
+            {
+                "title": "Sub-4 Club",
+                "detail": f"{count} sub-4 finish{'es' if count != 1 else ''}",
+            }
+        )
+    if summary["best_indo_place"] <= 10:
+        badges.append(
+            {
+                "title": "Top-10 Indo Finish",
+                "detail": f"Best visible Indo rank: #{summary['best_indo_place']}",
+            }
+        )
+    if not breakdown.empty and int(breakdown.iloc[0]["Entries"]) >= 3:
+        badges.append(
+            {
+                "title": "Course Loyalist",
+                "detail": f"{int(breakdown.iloc[0]['Entries'])} finishes at {breakdown.iloc[0]['Marathon']}",
+            }
+        )
+    if summary["years_active"] >= 5:
+        badges.append(
+            {
+                "title": "Long Game",
+                "detail": f"Active across {summary['years_active']} years",
+            }
+        )
+    return badges[:8]
+
+
+def runner_next_goals(
+    df: pd.DataFrame,
+    runner_name: str,
+    marathon_universe: list[str],
+) -> pd.DataFrame:
+    runner_df = df.loc[df["Name"] == runner_name].copy()
+    summary = runner_summary(df, runner_name)
+    road = road_to_stars(df, marathon_universe)
+    road_row = road.loc[road["Name"] == runner_name].iloc[0]
+    best_seconds = int(runner_df["Time_seconds"].min())
+    best_indo_place = int(runner_df["Indo_Place"].min())
+    goals: list[dict[str, str]] = []
+
+    if road_row["Missing_Majors"] != "None":
+        goals.append(
+            {
+                "Goal": "Next star",
+                "Target": road_row["Missing_Majors"],
+                "Gap": f"{road_row['Missing_Count']} major{'s' if road_row['Missing_Count'] != 1 else ''} left",
+                "Why": f"Completing {road_row['Missing_Majors']} moves you toward the full set.",
+            }
+        )
+    else:
+        goals.append(
+            {
+                "Goal": "Defend the set",
+                "Target": "Add another finish anywhere",
+                "Gap": "0 majors missing",
+                "Why": "You already own the full visible set. The next move is depth.",
+            }
+        )
+
+    time_targets = [
+        (5 * 3600, "sub-5"),
+        (4 * 3600 + 30 * 60, "sub-4:30"),
+        (4 * 3600, "sub-4"),
+        (3 * 3600 + 30 * 60, "sub-3:30"),
+        (3 * 3600, "sub-3"),
+    ]
+    target_seconds = None
+    target_label = ""
+    for seconds, label in time_targets:
+        if best_seconds > seconds:
+            target_seconds = seconds
+            target_label = label
+            break
+    if target_seconds is None:
+        target_seconds = max(2 * 3600 + 30 * 60, (best_seconds // 300 - 1) * 300)
+        target_label = "a new PB"
+
+    goals.append(
+        {
+            "Goal": "Time target",
+            "Target": target_label,
+            "Gap": format_seconds_delta(best_seconds - target_seconds),
+            "Why": f"You are {format_seconds_delta(best_seconds - target_seconds)} away from {target_label}.",
+        }
+    )
+
+    if best_indo_place > 10:
+        rank_target = 10
+    elif best_indo_place > 5:
+        rank_target = 5
+    elif best_indo_place > 3:
+        rank_target = 3
+    else:
+        rank_target = 1
+
+    if best_indo_place > rank_target:
+        goals.append(
+            {
+                "Goal": "Indo rank target",
+                "Target": f"Top {rank_target}",
+                "Gap": f"{best_indo_place - rank_target} place{'s' if best_indo_place - rank_target != 1 else ''}",
+                "Why": f"Your best visible Indo rank is #{best_indo_place}.",
+            }
+        )
+    else:
+        goals.append(
+            {
+                "Goal": "Indo rank target",
+                "Target": "Hold the front",
+                "Gap": f"Already at indo #{best_indo_place}",
+                "Why": "You are already operating at the sharp end of the field.",
+            }
+        )
+
+    next_entry_target = 5 if summary["entries"] < 5 else 10 if summary["entries"] < 10 else 15 if summary["entries"] < 15 else 20
+    goals.append(
+        {
+            "Goal": "Experience target",
+            "Target": f"{next_entry_target} finishes",
+            "Gap": f"{next_entry_target - summary['entries']} to go",
+            "Why": f"That would push your visible total from {summary['entries']} to {next_entry_target}.",
+        }
+    )
+
+    return pd.DataFrame(goals)
 
 
 def runner_results(df: pd.DataFrame, runner_name: str) -> pd.DataFrame:

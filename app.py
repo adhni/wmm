@@ -22,12 +22,16 @@ from src.wmm.metrics import (
     missing_major_pressure,
     road_to_stars,
     runner_best_by_marathon,
+    runner_badges,
     runner_growth,
     runner_marathon_breakdown,
     runner_milestones,
     runner_name_from_option,
+    runner_next_goals,
     runner_options,
+    runner_personal_story,
     runner_progression,
+    runner_rarity_summary,
     runner_results,
     runner_summary,
     star_leaderboard,
@@ -194,6 +198,86 @@ def inject_css() -> None:
             color: #2a2a2a;
             line-height: 1.55;
         }
+        .passport-card {
+            padding: 1.45rem 1.5rem;
+            border-radius: 22px;
+            background: linear-gradient(135deg, rgba(200, 76, 47, 0.92), rgba(34, 31, 59, 0.9));
+            color: #f8f2e9;
+            box-shadow: 0 24px 55px rgba(34, 31, 59, 0.15);
+            margin-bottom: 1rem;
+        }
+        .passport-kicker {
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            font-size: 0.75rem;
+            color: rgba(248, 242, 233, 0.7);
+            margin-bottom: 0.55rem;
+        }
+        .passport-name {
+            font-size: 2rem;
+            line-height: 1;
+            margin-bottom: 0.75rem;
+        }
+        .passport-copy {
+            max-width: 58rem;
+            color: rgba(248, 242, 233, 0.86);
+            line-height: 1.55;
+            margin-bottom: 1rem;
+        }
+        .passport-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        .passport-stat {
+            padding: 0.9rem 0.95rem;
+            border-radius: 16px;
+            background: rgba(248, 242, 233, 0.08);
+            border: 1px solid rgba(248, 242, 233, 0.1);
+        }
+        .passport-stat-label {
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(248, 242, 233, 0.66);
+            margin-bottom: 0.3rem;
+        }
+        .passport-stat-value {
+            color: #f8f2e9;
+            line-height: 1.35;
+        }
+        .goal-card {
+            padding: 1rem 1.05rem;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(34, 31, 59, 0.08);
+            box-shadow: 0 15px 30px rgba(34, 31, 59, 0.05);
+            min-height: 155px;
+            margin-bottom: 0.75rem;
+        }
+        .goal-card-title {
+            font-size: 0.76rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #8a5a34;
+            margin-bottom: 0.55rem;
+        }
+        .goal-card-target {
+            font-size: 1.15rem;
+            color: #182126;
+            font-weight: 700;
+            margin-bottom: 0.35rem;
+            line-height: 1.2;
+        }
+        .goal-card-gap {
+            color: #c84c2f;
+            font-weight: 600;
+            margin-bottom: 0.45rem;
+        }
+        .goal-card-why {
+            color: #5d5260;
+            line-height: 1.45;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -252,6 +336,60 @@ def render_badge_card(title: str, winner: str, detail: str) -> None:
 
 def render_story_card(text: str) -> None:
     st.markdown(f"<div class='story-card'>{text}</div>", unsafe_allow_html=True)
+
+
+def render_passport_card(
+    runner_name: str,
+    summary: dict[str, str | int],
+    road_row: pd.Series,
+    story: str,
+) -> None:
+    st.markdown(
+        f"""
+        <div class="passport-card">
+            <div class="passport-kicker">My WMM Passport</div>
+            <div class="passport-name">{runner_name}</div>
+            <div class="passport-copy">{story}</div>
+            <div class="passport-grid">
+                <div class="passport-stat">
+                    <div class="passport-stat-label">Completed</div>
+                    <div class="passport-stat-value">{road_row['Completed_Majors']}</div>
+                </div>
+                <div class="passport-stat">
+                    <div class="passport-stat-label">Missing</div>
+                    <div class="passport-stat-value">{road_row['Missing_Majors']}</div>
+                </div>
+                <div class="passport-stat">
+                    <div class="passport-stat-label">Best Result</div>
+                    <div class="passport-stat-value">{summary['best_result']}</div>
+                </div>
+                <div class="passport-stat">
+                    <div class="passport-stat-label">Favorite Course</div>
+                    <div class="passport-stat-value">{summary['favorite_marathon']}</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_goal_card(goal: str, target: str, gap: str, why: str) -> None:
+    st.markdown(
+        f"""
+        <div class="goal-card">
+            <div class="goal-card-title">{goal}</div>
+            <div class="goal-card-target">{target}</div>
+            <div class="goal-card-gap">{gap}</div>
+            <div class="goal-card-why">{why}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_personal_badge(title: str, detail: str) -> None:
+    render_badge_card(title, "Unlocked", detail)
 
 
 def growth_chart(data: pd.DataFrame) -> alt.Chart:
@@ -747,22 +885,49 @@ def main() -> None:
             runner_breakdown = runner_marathon_breakdown(filtered, runner_name)
             runner_road = roadmap.loc[roadmap["Name"] == runner_name].iloc[0]
             runner_milestone_table = runner_milestones(filtered, runner_name, selected_marathons)
+            runner_story = runner_personal_story(filtered, runner_name, selected_marathons)
+            runner_rarity = runner_rarity_summary(filtered, runner_name)
+            runner_goals = runner_next_goals(filtered, runner_name, selected_marathons)
+            runner_badge_list = runner_badges(filtered, runner_name, selected_marathons)
 
             st.markdown(f"## {runner_name}")
-            st.caption("Individual runner view with progression, Indonesian rank, and course spread.")
+            st.caption("A personal achievement view built from the visible WMM results in the current lens.")
+
+            render_passport_card(runner_name, runner_stats, runner_road, runner_story)
 
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Entries", runner_stats["entries"])
             c2.metric("Stars", runner_stats["stars"])
             c3.metric("Years Active", runner_stats["years_active"])
             c4.metric("Best Time", runner_stats["best_time"])
-            c5.metric("Latest Result", runner_stats["latest_result"])
-            st.info(f"Peak result: {runner_stats['best_result']}")
-            render_story_card(
-                f"Road to stars status: <strong>{runner_road['Status']}</strong>. "
-                f"Completed: {runner_road['Completed_Majors'] or 'None yet'}. "
-                f"Missing: {runner_road['Missing_Majors']}."
-            )
+            c5.metric("Best Indo Rank", f"#{runner_stats['best_indo_place']}")
+
+            section_label("How Rare")
+            st.subheader("Where this runner stands in the field")
+            rarity_columns = st.columns(len(runner_rarity))
+            for idx, row in runner_rarity.iterrows():
+                with rarity_columns[idx]:
+                    st.metric(str(row["Metric"]), str(row["Standing"]))
+                    st.caption(f"{row['Rank']} • value {row['Value']}")
+
+            section_label("Badge Cabinet")
+            st.subheader("Unlocked achievements")
+            badge_columns = st.columns(4)
+            for idx, badge in enumerate(runner_badge_list):
+                with badge_columns[idx % 4]:
+                    render_personal_badge(str(badge["title"]), str(badge["detail"]))
+
+            section_label("What's Next")
+            st.subheader("Practical next steps for this runner")
+            goal_columns = st.columns(len(runner_goals))
+            for idx, (_, goal_row) in enumerate(runner_goals.iterrows()):
+                with goal_columns[idx]:
+                    render_goal_card(
+                        str(goal_row["Goal"]),
+                        str(goal_row["Target"]),
+                        str(goal_row["Gap"]),
+                        str(goal_row["Why"]),
+                    )
 
             left, right = st.columns(2)
             with left:
@@ -770,15 +935,25 @@ def main() -> None:
                 st.subheader("Best result by year")
                 st.altair_chart(runner_progression_chart(runner_progress), use_container_width=True)
             with right:
-                section_label("Rank")
-                st.subheader("Indonesian placing by race")
-                st.altair_chart(runner_rank_chart(runner_df), use_container_width=True)
-
-            left, right = st.columns([0.85, 1.15])
-            with left:
                 section_label("Course Mix")
                 st.subheader("Where this runner keeps showing up")
                 st.altair_chart(runner_breakdown_chart(runner_breakdown), use_container_width=True)
+
+            left, right = st.columns([0.95, 1.05])
+            with left:
+                section_label("Rank")
+                st.subheader("Indonesian placing by race")
+                st.altair_chart(runner_rank_chart(runner_df), use_container_width=True)
+            with right:
+                section_label("Milestones")
+                st.subheader("Journey moments")
+                st.dataframe(runner_milestone_table, use_container_width=True, hide_index=True)
+
+            left, right = st.columns([0.95, 1.05])
+            with left:
+                section_label("Best Splits")
+                st.subheader("Best result by marathon")
+                st.dataframe(runner_best, use_container_width=True, hide_index=True)
             with right:
                 section_label("Career Log")
                 st.subheader("All visible results")
@@ -789,16 +964,6 @@ def main() -> None:
                     file_name=f"{runner_name.lower().replace(' ', '_')}_results.csv",
                     mime="text/csv",
                 )
-
-            left, right = st.columns([0.95, 1.05])
-            with left:
-                section_label("Milestones")
-                st.subheader("Journey moments")
-                st.dataframe(runner_milestone_table, use_container_width=True, hide_index=True)
-            with right:
-                section_label("Best Splits")
-                st.subheader("Best result by marathon")
-                st.dataframe(runner_best, use_container_width=True, hide_index=True)
 
     with data_tab:
         section_label("Downloads")
