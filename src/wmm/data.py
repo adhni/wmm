@@ -24,6 +24,16 @@ def format_seconds_to_hm(seconds: int | float) -> str:
     return f"{hours:02d}:{minutes:02d}"
 
 
+def format_seconds_delta(seconds: int | float) -> str:
+    total_seconds = abs(int(round(seconds)))
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds_remainder = total_seconds % 60
+    if hours:
+        return f"{hours}h {minutes:02d}m {seconds_remainder:02d}s"
+    return f"{minutes}m {seconds_remainder:02d}s"
+
+
 def load_data(path: Path = DATA_PATH) -> pd.DataFrame:
     df = pd.read_csv(path)
     df["Name"] = df["Name"].str.upper().str.strip()

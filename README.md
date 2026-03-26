@@ -19,11 +19,12 @@ python3 -m streamlit run app.py
 ## Current Dashboard
 
 - Filter by marathon and year range
-- View participation growth by year
-- View median finish times by year
-- Inspect fastest results by year and by marathon
-- See top repeat runners
-- Explore WMM star counts by runner
+- Track participation pulse, latest-year snapshots, and rank drift
+- Explore `Road to Stars` progress and one-away runners
+- Browse `Hall of Fame` badges and leaderboards
+- View marathon-specific profiles and finish-time fingerprints
+- Search runner journeys, milestones, Indo ranks, and course mix
+- Download filtered data, stars tables, and runner logs
 
 ## Project Layout
 

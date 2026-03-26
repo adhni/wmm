@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from .data import format_seconds_to_hm, format_seconds_to_hms
+from .data import format_seconds_delta, format_seconds_to_hm, format_seconds_to_hms
 
 
 def filtered_data(
@@ -192,6 +192,327 @@ def star_distribution(df: pd.DataFrame) -> pd.DataFrame:
         .sort_values("Stars")
     )
     return stars
+
+
+def road_to_stars(df: pd.DataFrame, marathon_universe: list[str]) -> pd.DataFrame:
+    rows: list[dict[str, str | int]] = []
+    universe = list(marathon_universe)
+
+    for name, group in df.groupby("Name"):
+        completed_set = set(group["Marathon"].unique())
+        completed = [marathon for marathon in universe if marathon in completed_set]
+        missing = [marathon for marathon in universe if marathon not in completed_set]
+        stars = len(completed)
+        if stars == len(universe):
+            status = "Complete"
+        elif stars == len(universe) - 1:
+            status = "One away"
+        elif stars >= max(len(universe) - 2, 1):
+            status = "In striking distance"
+        else:
+            status = "Building"
+
+        rows.append(
+            {
+                "Name": name,
+                "Stars": stars,
+                "Entries": len(group),
+                "Latest_Year": int(group["Year"].max()),
+                "WMM_PB_Seconds": int(group["Time_seconds"].min()),
+                "WMM_PB": format_seconds_to_hms(group["Time_seconds"].min()),
+                "Completed_Majors": ", ".join(completed),
+                "Missing_Majors": ", ".join(missing) if missing else "None",
+                "Missing_Count": len(missing),
+                "Status": status,
+            }
+        )
+
+    result = pd.DataFrame(rows).sort_values(
+        ["Stars", "Missing_Count", "Entries", "Latest_Year", "WMM_PB_Seconds", "Name"],
+        ascending=[False, True, False, False, True, True],
+    )
+    return result.reset_index(drop=True)
+
+
+def star_status_summary(road_df: pd.DataFrame) -> pd.DataFrame:
+    summary = (
+        road_df.groupby("Status", as_index=False)
+        .size()
+        .rename(columns={"size": "Runner_Count"})
+    )
+    status_order = ["Complete", "One away", "In striking distance", "Building"]
+    summary["Order"] = summary["Status"].map({label: idx for idx, label in enumerate(status_order)})
+    summary = summary.sort_values("Order").drop(columns="Order").reset_index(drop=True)
+    return summary
+
+
+def missing_major_pressure(road_df: pd.DataFrame) -> pd.DataFrame:
+    base = road_df.loc[road_df["Status"] == "One away", ["Name", "Missing_Majors"]].copy()
+    if base.empty:
+        return pd.DataFrame(columns=["Marathon", "Runner_Count"])
+    pressure = (
+        base.assign(Marathon=base["Missing_Majors"].str.split(", "))
+        .explode("Marathon")
+        .groupby("Marathon", as_index=False)
+        .size()
+        .rename(columns={"size": "Runner_Count"})
+        .sort_values(["Runner_Count", "Marathon"], ascending=[False, True])
+        .reset_index(drop=True)
+    )
+    return pressure
+
+
+def entry_leaderboard(df: pd.DataFrame, limit: int = 10) -> pd.DataFrame:
+    leaderboard = (
+        df.groupby("Name", as_index=False)
+        .agg(
+            Entries=("Name", "size"),
+            Stars=("Marathon", "nunique"),
+            Best_Time_Seconds=("Time_seconds", "min"),
+        )
+        .sort_values(["Entries", "Stars", "Best_Time_Seconds", "Name"], ascending=[False, False, True, True])
+        .head(limit)
+        .reset_index(drop=True)
+    )
+    leaderboard["Best_Time"] = leaderboard["Best_Time_Seconds"].map(format_seconds_to_hms)
+    return leaderboard[["Name", "Entries", "Stars", "Best_Time"]]
+
+
+def star_leaderboard(df: pd.DataFrame, limit: int = 10) -> pd.DataFrame:
+    leaderboard = (
+        df.groupby("Name", as_index=False)
+        .agg(
+            Stars=("Marathon", "nunique"),
+            Entries=("Name", "size"),
+            Latest_Year=("Year", "max"),
+            Best_Time_Seconds=("Time_seconds", "min"),
+        )
+        .sort_values(["Stars", "Entries", "Latest_Year", "Best_Time_Seconds", "Name"], ascending=[False, False, False, True, True])
+        .head(limit)
+        .reset_index(drop=True)
+    )
+    leaderboard["Best_Time"] = leaderboard["Best_Time_Seconds"].map(format_seconds_to_hms)
+    return leaderboard[["Name", "Stars", "Entries", "Latest_Year", "Best_Time"]]
+
+
+def active_years_leaderboard(df: pd.DataFrame, limit: int = 10) -> pd.DataFrame:
+    leaderboard = (
+        df.groupby("Name", as_index=False)
+        .agg(
+            Active_Years=("Year", "nunique"),
+            Entries=("Name", "size"),
+            Stars=("Marathon", "nunique"),
+            Best_Time_Seconds=("Time_seconds", "min"),
+        )
+        .sort_values(["Active_Years", "Entries", "Stars", "Best_Time_Seconds", "Name"], ascending=[False, False, False, True, True])
+        .head(limit)
+        .reset_index(drop=True)
+    )
+    leaderboard["Best_Time"] = leaderboard["Best_Time_Seconds"].map(format_seconds_to_hms)
+    return leaderboard[["Name", "Active_Years", "Entries", "Stars", "Best_Time"]]
+
+
+def sub4_leaderboard(df: pd.DataFrame, limit: int = 10) -> pd.DataFrame:
+    leaderboard = (
+        df.assign(Sub4=(df["Time_seconds"] < 4 * 3600).astype(int))
+        .groupby("Name", as_index=False)
+        .agg(
+            Sub4_Finishes=("Sub4", "sum"),
+            Entries=("Name", "size"),
+            Best_Time_Seconds=("Time_seconds", "min"),
+        )
+        .query("Sub4_Finishes > 0")
+        .sort_values(["Sub4_Finishes", "Entries", "Best_Time_Seconds", "Name"], ascending=[False, False, True, True])
+        .head(limit)
+        .reset_index(drop=True)
+    )
+    leaderboard["Best_Time"] = leaderboard["Best_Time_Seconds"].map(format_seconds_to_hms)
+    return leaderboard[["Name", "Sub4_Finishes", "Entries", "Best_Time"]]
+
+
+def improvement_leaderboard(df: pd.DataFrame, limit: int = 10) -> pd.DataFrame:
+    rows: list[dict[str, str | int]] = []
+    for name, group in df.groupby("Name"):
+        if len(group) < 2:
+            continue
+        first_year = int(group["Year"].min())
+        first_year_best = int(group.loc[group["Year"] == first_year, "Time_seconds"].min())
+        best_time = int(group["Time_seconds"].min())
+        improvement = first_year_best - best_time
+        if improvement <= 0:
+            continue
+        rows.append(
+            {
+                "Name": name,
+                "First_Year": first_year,
+                "First_Year_Best": format_seconds_to_hms(first_year_best),
+                "Current_Best": format_seconds_to_hms(best_time),
+                "Improvement_Seconds": improvement,
+                "Improvement": format_seconds_delta(improvement),
+            }
+        )
+    leaderboard = pd.DataFrame(rows)
+    if leaderboard.empty:
+        return pd.DataFrame(columns=["Name", "First_Year", "First_Year_Best", "Current_Best", "Improvement"])
+    leaderboard = leaderboard.sort_values(["Improvement_Seconds", "Name"], ascending=[False, True]).head(limit)
+    return leaderboard[["Name", "First_Year", "First_Year_Best", "Current_Best", "Improvement"]].reset_index(drop=True)
+
+
+def hall_of_fame_cards(df: pd.DataFrame) -> list[dict[str, str]]:
+    entries = entry_leaderboard(df, 1).iloc[0]
+    stars = star_leaderboard(df, 1).iloc[0]
+    fastest = df.nsmallest(1, "Time_seconds").iloc[0]
+    active = active_years_leaderboard(df, 1).iloc[0]
+    cards = [
+        {
+            "title": "Most Entries",
+            "winner": str(entries["Name"]),
+            "detail": f"{int(entries['Entries'])} visible finishes",
+        },
+        {
+            "title": "Most Stars",
+            "winner": str(stars["Name"]),
+            "detail": f"{int(stars['Stars'])} majors across {int(stars['Entries'])} finishes",
+        },
+        {
+            "title": "Fastest Overall",
+            "winner": str(fastest["Name"]),
+            "detail": f"{fastest['Marathon']} {int(fastest['Year'])} • {fastest['Time']}",
+        },
+        {
+            "title": "Longest Visible Career",
+            "winner": str(active["Name"]),
+            "detail": f"{int(active['Active_Years'])} active years",
+        },
+    ]
+    sub4 = sub4_leaderboard(df, 1)
+    if not sub4.empty:
+        leader = sub4.iloc[0]
+        cards.append(
+            {
+                "title": "Sub-4 Machine",
+                "winner": str(leader["Name"]),
+                "detail": f"{int(leader['Sub4_Finishes'])} sub-4 finishes",
+            }
+        )
+    improvement = improvement_leaderboard(df, 1)
+    if not improvement.empty:
+        leader = improvement.iloc[0]
+        cards.append(
+            {
+                "title": "Biggest Improvement",
+                "winner": str(leader["Name"]),
+                "detail": f"{leader['Improvement']} faster than first visible year",
+            }
+        )
+    return cards
+
+
+def marathon_profile_summary(df: pd.DataFrame, marathon: str) -> dict[str, str | int | float]:
+    marathon_df = df.loc[df["Marathon"] == marathon].copy()
+    per_runner = marathon_df.groupby("Name", as_index=False).agg(Entries=("Marathon", "size"))
+    all_runner_stars = df.groupby("Name", as_index=False).agg(Stars=("Marathon", "nunique"))
+    merged = per_runner.merge(all_runner_stars, on="Name", how="left")
+    repeat_share = (merged["Entries"] > 1).mean() if not merged.empty else 0
+    multi_star_share = (merged["Stars"] >= 3).mean() if not merged.empty else 0
+    fastest = marathon_df.nsmallest(1, "Time_seconds").iloc[0]
+    latest_year = int(marathon_df["Year"].max())
+    latest_count = int((marathon_df["Year"] == latest_year).sum())
+    return {
+        "entries": len(marathon_df),
+        "unique_runners": int(marathon_df["Name"].nunique()),
+        "latest_year": latest_year,
+        "latest_count": latest_count,
+        "median_time": format_seconds_to_hm(marathon_df["Time_seconds"].median()),
+        "fastest_time": str(fastest["Time"]),
+        "fastest_runner": str(fastest["Name"]),
+        "repeat_share": float(round(repeat_share * 100, 1)),
+        "multi_star_share": float(round(multi_star_share * 100, 1)),
+    }
+
+
+def marathon_top_performers(df: pd.DataFrame, marathon: str, limit: int = 12) -> pd.DataFrame:
+    top = (
+        df.loc[df["Marathon"] == marathon, ["Year", "Name", "Time", "Indo_Place", "Place", "Time_seconds"]]
+        .sort_values(["Time_seconds", "Year", "Name"])
+        .head(limit)
+        .reset_index(drop=True)
+    )
+    return top.drop(columns=["Time_seconds"])
+
+
+def runner_milestones(df: pd.DataFrame, runner_name: str, marathon_universe: list[str]) -> pd.DataFrame:
+    runner_df = (
+        df.loc[df["Name"] == runner_name]
+        .sort_values(["Year", "Time_seconds", "Marathon"])
+        .reset_index(drop=True)
+    )
+    milestones: list[dict[str, str | int]] = []
+
+    first = runner_df.iloc[0]
+    milestones.append(
+        {
+            "Order": 1,
+            "Milestone": "First visible major",
+            "Year": int(first["Year"]),
+            "Detail": f"{first['Marathon']} • {first['Time']}",
+        }
+    )
+
+    thresholds = [
+        ("First sub-5", 5 * 3600),
+        ("First sub-4:30", 4 * 3600 + 30 * 60),
+        ("First sub-4", 4 * 3600),
+        ("First sub-3:30", 3 * 3600 + 30 * 60),
+    ]
+    order = 10
+    for label, seconds in thresholds:
+        hits = runner_df.loc[runner_df["Time_seconds"] < seconds]
+        if not hits.empty:
+            hit = hits.iloc[0]
+            milestones.append(
+                {
+                    "Order": order,
+                    "Milestone": label,
+                    "Year": int(hit["Year"]),
+                    "Detail": f"{hit['Marathon']} • {hit['Time']}",
+                }
+            )
+        order += 1
+
+    seen: set[str] = set()
+    reached: set[int] = set()
+    for year in sorted(runner_df["Year"].unique()):
+        seen.update(runner_df.loc[runner_df["Year"] == year, "Marathon"].unique())
+        for threshold in range(2, len(marathon_universe) + 1):
+            if len(seen) >= threshold and threshold not in reached:
+                milestones.append(
+                    {
+                        "Order": 30 + threshold,
+                        "Milestone": f"Reached {threshold} stars",
+                        "Year": int(year),
+                        "Detail": ", ".join(m for m in marathon_universe if m in seen),
+                    }
+                )
+                reached.add(threshold)
+
+    best = runner_df.nsmallest(1, "Time_seconds").iloc[0]
+    milestones.append(
+        {
+            "Order": 99,
+            "Milestone": "Best visible result",
+            "Year": int(best["Year"]),
+            "Detail": f"{best['Marathon']} • {best['Time']} • indo #{int(best['Indo_Place'])}",
+        }
+    )
+
+    result = (
+        pd.DataFrame(milestones)
+        .sort_values(["Order", "Year", "Milestone"])
+        .drop(columns="Order")
+        .reset_index(drop=True)
+    )
+    return result
 
 
 def runner_options(df: pd.DataFrame) -> list[str]:

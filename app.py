@@ -6,23 +6,35 @@ import streamlit as st
 
 from src.wmm.data import load_data
 from src.wmm.metrics import (
+    active_years_leaderboard,
+    entry_leaderboard,
     fastest_by_marathon,
     fastest_by_year,
     filtered_data,
     finish_time_spectrum,
+    hall_of_fame_cards,
+    improvement_leaderboard,
     latest_year_snapshot,
     marathon_rankings,
+    marathon_profile_summary,
+    marathon_top_performers,
     median_finish_times,
+    missing_major_pressure,
+    road_to_stars,
     runner_best_by_marathon,
     runner_growth,
     runner_marathon_breakdown,
+    runner_milestones,
     runner_name_from_option,
     runner_options,
     runner_progression,
     runner_results,
     runner_summary,
+    star_leaderboard,
+    star_status_summary,
     star_distribution,
     star_table,
+    sub4_leaderboard,
     summary_metrics,
     to_csv_bytes,
 )
@@ -146,6 +158,42 @@ def inject_css() -> None:
             border-radius: 16px;
             overflow: hidden;
         }
+        .badge-card {
+            padding: 1rem 1.1rem;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(34, 31, 59, 0.08);
+            box-shadow: 0 15px 30px rgba(34, 31, 59, 0.06);
+            min-height: 138px;
+            margin-bottom: 0.75rem;
+        }
+        .badge-title {
+            font-size: 0.78rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #8a5a34;
+            margin-bottom: 0.55rem;
+        }
+        .badge-winner {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #182126;
+            line-height: 1.15;
+            margin-bottom: 0.45rem;
+        }
+        .badge-detail {
+            color: #5d5260;
+            line-height: 1.45;
+        }
+        .story-card {
+            padding: 1rem 1.1rem;
+            border-radius: 18px;
+            background: rgba(34, 31, 59, 0.06);
+            border: 1px solid rgba(34, 31, 59, 0.08);
+            margin-bottom: 1rem;
+            color: #2a2a2a;
+            line-height: 1.55;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -187,6 +235,23 @@ def render_hero(metrics: dict[str, str | int], selected_marathons: list[str], se
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_badge_card(title: str, winner: str, detail: str) -> None:
+    st.markdown(
+        f"""
+        <div class="badge-card">
+            <div class="badge-title">{title}</div>
+            <div class="badge-winner">{winner}</div>
+            <div class="badge-detail">{detail}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_story_card(text: str) -> None:
+    st.markdown(f"<div class='story-card'>{text}</div>", unsafe_allow_html=True)
 
 
 def growth_chart(data: pd.DataFrame) -> alt.Chart:
@@ -304,6 +369,36 @@ def star_chart(data: pd.DataFrame) -> alt.Chart:
     )
 
 
+def status_chart(data: pd.DataFrame) -> alt.Chart:
+    return (
+        alt.Chart(data)
+        .mark_bar(cornerRadiusTopLeft=10, cornerRadiusTopRight=10)
+        .encode(
+            x=alt.X("Status:N", title=None, sort=list(data["Status"])),
+            y=alt.Y("Runner_Count:Q", title="Runner Count"),
+            color=alt.Color("Status:N", legend=None, scale=alt.Scale(
+                domain=["Complete", "One away", "In striking distance", "Building"],
+                range=["#164b63", "#c84c2f", "#ce7f3c", "#8d7e6d"],
+            )),
+            tooltip=["Status:N", alt.Tooltip("Runner_Count:Q", format=",.0f")],
+        )
+        .properties(height=280)
+    )
+
+
+def missing_major_chart(data: pd.DataFrame) -> alt.Chart:
+    return (
+        alt.Chart(data)
+        .mark_bar(cornerRadiusTopLeft=10, cornerRadiusTopRight=10, color="#c84c2f")
+        .encode(
+            x=alt.X("Marathon:N", sort="-y", title=None),
+            y=alt.Y("Runner_Count:Q", title="One-Away Runners"),
+            tooltip=["Marathon:N", alt.Tooltip("Runner_Count:Q", format=",.0f")],
+        )
+        .properties(height=280)
+    )
+
+
 def runner_progression_chart(data: pd.DataFrame) -> alt.Chart:
     return (
         alt.Chart(data)
@@ -345,6 +440,30 @@ def runner_breakdown_chart(data: pd.DataFrame) -> alt.Chart:
             tooltip=["Marathon:N", "Entries:Q", "Best_Time:N", "First_Year:Q", "Latest_Year:Q"],
         )
         .properties(height=320)
+    )
+
+
+def marathon_distribution_chart(data: pd.DataFrame, marathon: str) -> alt.Chart:
+    marathon_data = data.loc[data["Marathon"] == marathon]
+    return (
+        alt.Chart(marathon_data)
+        .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8, color="#b33f24")
+        .encode(
+            x=alt.X("Time_Bin:N", title="Finish Time Band", sort=list(marathon_data["Time_Bin"].unique())),
+            y=alt.Y("Runner_Count:Q", title="Runner Count"),
+            tooltip=["Time_Bin:N", alt.Tooltip("Runner_Count:Q", format=",.0f")],
+        )
+        .properties(height=320)
+    )
+
+
+def profile_narrative(summary: dict[str, str | int | float], marathon: str) -> str:
+    return (
+        f"{marathon} shows {summary['entries']:,} visible finishes from "
+        f"{summary['unique_runners']:,} unique runners in the current lens. "
+        f"The latest visible edition in {summary['latest_year']} drew {summary['latest_count']:,} Indonesians, "
+        f"the median finish sat at {summary['median_time']}, and {summary['repeat_share']}% of runners on this course "
+        f"have shown up more than once. {summary['multi_star_share']}% of its runners are already on a 3-star-or-better journey."
     )
 
 
@@ -393,10 +512,26 @@ def main() -> None:
     ranking = marathon_rankings(filtered)
     spectrum = finish_time_spectrum(filtered, bin_minutes=time_bin_minutes)
     stars_by_count = star_distribution(filtered)
+    roadmap = road_to_stars(filtered, selected_marathons)
+    roadmap_status = star_status_summary(roadmap)
+    missing_pressure = missing_major_pressure(roadmap)
+    badge_cards = hall_of_fame_cards(filtered)
+    entry_board = entry_leaderboard(filtered)
+    stars_board = star_leaderboard(filtered)
+    active_board = active_years_leaderboard(filtered)
+    sub4_board = sub4_leaderboard(filtered)
+    improvement_board = improvement_leaderboard(filtered)
     fastest_course = fastest_by_marathon(filtered)
     fastest_year = fastest_by_year(filtered)
     latest_year, latest_snapshot = latest_year_snapshot(filtered)
     stars = star_table(filtered)
+    profile_marathon = st.session_state.get("profile_marathon", selected_marathons[0])
+    if profile_marathon not in selected_marathons:
+        profile_marathon = selected_marathons[0]
+    profile_summary_data = marathon_profile_summary(filtered, profile_marathon)
+    profile_growth = growth.loc[growth["Marathon"] == profile_marathon]
+    profile_medians = medians.loc[medians["Marathon"] == profile_marathon]
+    profile_top = marathon_top_performers(filtered, profile_marathon)
 
     render_hero(metrics, selected_marathons, selected_years)
 
@@ -411,8 +546,8 @@ def main() -> None:
     )
     metric_5.metric("View Range", metrics["year_range"])
 
-    pulse_tab, compare_tab, runner_tab, data_tab = st.tabs(
-        ["Pulse", "Compare", "Runner Lab", "Data Vault"]
+    pulse_tab, stars_tab, fame_tab, profiles_tab, compare_tab, runner_tab, data_tab = st.tabs(
+        ["Pulse", "Stars", "Hall of Fame", "Marathon Profiles", "Compare", "Runner Lab", "Data Vault"]
     )
 
     with pulse_tab:
@@ -435,6 +570,143 @@ def main() -> None:
             section_label("Stars")
             st.subheader("How many majors most runners have touched")
             st.altair_chart(star_chart(stars_by_count), use_container_width=True)
+
+    with stars_tab:
+        complete_count = int((roadmap["Status"] == "Complete").sum())
+        one_away_count = int((roadmap["Status"] == "One away").sum())
+        close_count = int((roadmap["Status"] == "In striking distance").sum())
+        median_stars = float(roadmap["Stars"].median()) if not roadmap.empty else 0.0
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Complete", complete_count)
+        c2.metric("One Away", one_away_count)
+        c3.metric("In Striking Distance", close_count)
+        c4.metric("Median Stars", f"{median_stars:.1f}")
+
+        render_story_card(
+            "This section treats stars as a journey inside the current filter lens. "
+            "It surfaces who has finished the set, who is one race away, and which course is the most common missing final piece."
+        )
+
+        left, right = st.columns(2)
+        with left:
+            section_label("Journey Status")
+            st.subheader("How close runners are to completing the visible set")
+            st.altair_chart(status_chart(roadmap_status), use_container_width=True)
+        with right:
+            section_label("Final Missing Step")
+            st.subheader("Which marathon 4-star runners still need")
+            if missing_pressure.empty:
+                st.info("No one-away runners in the current filter.")
+            else:
+                st.altair_chart(missing_major_chart(missing_pressure), use_container_width=True)
+
+        left, right = st.columns([0.95, 1.05])
+        with left:
+            section_label("One Away")
+            st.subheader("Runners who are one major from completion")
+            one_away = roadmap.loc[roadmap["Status"] == "One away"]
+            if one_away.empty:
+                st.info("No one-away runners in the current filter.")
+            else:
+                st.dataframe(
+                    one_away[["Name", "Entries", "WMM_PB", "Latest_Year", "Missing_Majors"]],
+                    use_container_width=True,
+                    hide_index=True,
+                )
+        with right:
+            section_label("Road Map")
+            st.subheader("Full road-to-stars table")
+            st.dataframe(
+                roadmap[["Name", "Stars", "Status", "Entries", "WMM_PB", "Completed_Majors", "Missing_Majors", "Latest_Year"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+            st.download_button(
+                "Download Road To Stars",
+                data=to_csv_bytes(roadmap),
+                file_name="wmm_road_to_stars.csv",
+                mime="text/csv",
+            )
+
+    with fame_tab:
+        section_label("Badge Winners")
+        st.subheader("Who owns the current bragging rights")
+        badge_columns = st.columns(3)
+        for idx, card in enumerate(badge_cards):
+            with badge_columns[idx % 3]:
+                render_badge_card(card["title"], card["winner"], card["detail"])
+
+        render_story_card(
+            "These leaderboards stay grounded in the visible dataset: not just raw speed, but travel depth, staying power, consistency, and improvement."
+        )
+
+        left, right = st.columns(2)
+        with left:
+            section_label("Travel Depth")
+            st.subheader("Most entries and most stars")
+            st.dataframe(entry_board, use_container_width=True, hide_index=True)
+            st.dataframe(stars_board, use_container_width=True, hide_index=True)
+        with right:
+            section_label("Durability")
+            st.subheader("Most active years and sub-4 leaders")
+            st.dataframe(active_board, use_container_width=True, hide_index=True)
+            if sub4_board.empty:
+                st.info("No sub-4 finishes in the current filter.")
+            else:
+                st.dataframe(sub4_board, use_container_width=True, hide_index=True)
+
+        section_label("Improvement")
+        st.subheader("Biggest jumps from first visible year to best visible result")
+        if improvement_board.empty:
+            st.info("No measurable multi-race improvements in the current filter.")
+        else:
+            st.dataframe(improvement_board, use_container_width=True, hide_index=True)
+
+    with profiles_tab:
+        section_label("Course Identity")
+        st.subheader("Profile one major at a time")
+        profile_marathon = st.selectbox(
+            "Choose a marathon profile",
+            selected_marathons,
+            index=selected_marathons.index(profile_marathon),
+            key="profile_marathon",
+        )
+        profile_summary_data = marathon_profile_summary(filtered, profile_marathon)
+        profile_growth = growth.loc[growth["Marathon"] == profile_marathon]
+        profile_medians = medians.loc[medians["Marathon"] == profile_marathon]
+        profile_top = marathon_top_performers(filtered, profile_marathon)
+
+        render_story_card(profile_narrative(profile_summary_data, profile_marathon))
+
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Entries", f"{profile_summary_data['entries']:,}")
+        c2.metric("Unique Runners", f"{profile_summary_data['unique_runners']:,}")
+        c3.metric(f"{profile_summary_data['latest_year']} Entries", f"{profile_summary_data['latest_count']:,}")
+        c4.metric("Repeat Share", f"{profile_summary_data['repeat_share']}%")
+        c5.metric("3+ Star Share", f"{profile_summary_data['multi_star_share']}%")
+        st.info(
+            f"Fastest visible runner on {profile_marathon}: "
+            f"{profile_summary_data['fastest_runner']} in {profile_summary_data['fastest_time']}."
+        )
+
+        left, right = st.columns(2)
+        with left:
+            section_label("Volume")
+            st.subheader("Participation over time")
+            st.altair_chart(growth_chart(profile_growth), use_container_width=True)
+        with right:
+            section_label("Speed")
+            st.subheader("Median finish-time shape")
+            st.altair_chart(median_chart(profile_medians), use_container_width=True)
+
+        section_label("Distribution")
+        st.subheader("Where this marathon's runners tend to land")
+        st.altair_chart(marathon_distribution_chart(spectrum, profile_marathon), use_container_width=True)
+
+        section_label("Top Performers")
+        st.subheader("Fastest visible results on this course")
+        st.dataframe(profile_top, use_container_width=True, hide_index=True)
 
     with compare_tab:
         left, right = st.columns(2)
@@ -473,6 +745,8 @@ def main() -> None:
             runner_best = runner_best_by_marathon(filtered, runner_name)
             runner_progress = runner_progression(filtered, runner_name)
             runner_breakdown = runner_marathon_breakdown(filtered, runner_name)
+            runner_road = roadmap.loc[roadmap["Name"] == runner_name].iloc[0]
+            runner_milestone_table = runner_milestones(filtered, runner_name, selected_marathons)
 
             st.markdown(f"## {runner_name}")
             st.caption("Individual runner view with progression, Indonesian rank, and course spread.")
@@ -484,6 +758,11 @@ def main() -> None:
             c4.metric("Best Time", runner_stats["best_time"])
             c5.metric("Latest Result", runner_stats["latest_result"])
             st.info(f"Peak result: {runner_stats['best_result']}")
+            render_story_card(
+                f"Road to stars status: <strong>{runner_road['Status']}</strong>. "
+                f"Completed: {runner_road['Completed_Majors'] or 'None yet'}. "
+                f"Missing: {runner_road['Missing_Majors']}."
+            )
 
             left, right = st.columns(2)
             with left:
@@ -511,9 +790,15 @@ def main() -> None:
                     mime="text/csv",
                 )
 
-            section_label("Best Splits")
-            st.subheader("Best result by marathon")
-            st.dataframe(runner_best, use_container_width=True, hide_index=True)
+            left, right = st.columns([0.95, 1.05])
+            with left:
+                section_label("Milestones")
+                st.subheader("Journey moments")
+                st.dataframe(runner_milestone_table, use_container_width=True, hide_index=True)
+            with right:
+                section_label("Best Splits")
+                st.subheader("Best result by marathon")
+                st.dataframe(runner_best, use_container_width=True, hide_index=True)
 
     with data_tab:
         section_label("Downloads")
