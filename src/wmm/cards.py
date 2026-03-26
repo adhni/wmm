@@ -53,6 +53,8 @@ BODY_FONT = _load_font(30, bold=False)
 BODY_BOLD = _load_font(32, bold=True)
 SMALL_FONT = _load_font(24, bold=False)
 SMALL_BOLD = _load_font(24, bold=True)
+TINY_FONT = _load_font(20, bold=False)
+TINY_BOLD = _load_font(20, bold=True)
 
 
 def _make_background() -> Image.Image:
@@ -72,6 +74,18 @@ def _make_background() -> Image.Image:
 
 def _wrap(text: str, width: int) -> list[str]:
     return textwrap.wrap(text, width=width, break_long_words=False, break_on_hyphens=False) or [text]
+
+
+def _clamp_lines(text: str, width: int, max_lines: int) -> list[str]:
+    lines = _wrap(text, width)
+    if len(lines) <= max_lines:
+        return lines
+    trimmed = lines[:max_lines]
+    last = trimmed[-1]
+    if len(last) > 3:
+        last = last[:-3].rstrip()
+    trimmed[-1] = f"{last}..."
+    return trimmed
 
 
 def _draw_lines(
@@ -95,7 +109,20 @@ def _pill(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str,
     draw.rounded_rectangle(box, radius=22, fill="#ffffff", outline="#eadcc7", width=2)
     x0, y0, _, _ = box
     draw.text((x0 + 22, y0 + 18), label.upper(), font=SECTION_FONT, fill=MUTED)
-    draw.text((x0 + 22, y0 + 56), value, font=BODY_BOLD, fill=TEXT_DARK)
+    lines = _clamp_lines(value, 24 if (box[2] - box[0]) > 430 else 16, 2)
+    _draw_lines(draw, x0 + 22, y0 + 56, lines, BODY_BOLD, TEXT_DARK, 4)
+
+
+def _text_height(draw: ImageDraw.ImageDraw, lines: list[str], font: ImageFont.ImageFont, spacing: int) -> int:
+    if not lines:
+        return 0
+    total = 0
+    for idx, line in enumerate(lines):
+        bbox = draw.textbbox((0, 0), line, font=font)
+        total += bbox[3] - bbox[1]
+        if idx < len(lines) - 1:
+            total += spacing
+    return total
 
 
 def _to_png_bytes(image: Image.Image) -> bytes:
@@ -112,11 +139,12 @@ def runner_passport_card(
 ) -> bytes:
     image = _make_background()
     draw = ImageDraw.Draw(image)
+    story_lines = _clamp_lines(story, 56, 3)
 
     draw.text((118, 116), "WMM RUNNER PASSPORT", font=SECTION_FONT, fill=ACCENT_GOLD)
     draw.text((118, 158), runner_name, font=TITLE_FONT, fill=TEXT_LIGHT)
     draw.text((118, 262), f"{summary['stars']} stars • {summary['entries']} finishes • {summary['years_active']} active years", font=BODY_FONT, fill=TEXT_LIGHT)
-    _draw_lines(draw, 118, 316, _wrap(story, 50), SMALL_FONT, "#f1e4d8", 8)
+    _draw_lines(draw, 118, 316, story_lines, SMALL_FONT, "#f1e4d8", 8)
 
     _pill(draw, (118, 430, 470, 560), "Best Time", str(summary["best_time"]))
     _pill(draw, (500, 430, 962, 560), "Best Indo Rank", f"#{summary['best_indo_place']}")
@@ -124,16 +152,18 @@ def runner_passport_card(
     _pill(draw, (570, 584, 962, 714), "Latest Result", str(summary["latest_result"]))
 
     draw.text((118, 782), "COMPLETED MAJORS", font=SECTION_FONT, fill=ACCENT)
-    completed_lines = _wrap(str(road_row["Completed_Majors"]), 40)
+    completed_lines = _clamp_lines(str(road_row["Completed_Majors"]), 40, 2)
     _draw_lines(draw, 118, 820, completed_lines, BODY_BOLD, TEXT_DARK, 10)
 
-    draw.text((118, 930), "MISSING MAJORS", font=SECTION_FONT, fill=ACCENT)
+    next_y = 820 + _text_height(draw, completed_lines, BODY_BOLD, 10) + 48
+    draw.text((118, next_y), "MISSING MAJORS", font=SECTION_FONT, fill=ACCENT)
     missing_text = str(road_row["Missing_Majors"])
-    _draw_lines(draw, 118, 968, _wrap(missing_text, 40), BODY_BOLD, TEXT_DARK, 10)
+    missing_lines = _clamp_lines(missing_text, 40, 2)
+    _draw_lines(draw, 118, next_y + 38, missing_lines, BODY_BOLD, TEXT_DARK, 10)
 
     draw.rounded_rectangle((118, 1080, 962, 1228), radius=24, fill="#ffffff", outline="#eadcc7", width=2)
     draw.text((148, 1114), "Peak result", font=SECTION_FONT, fill=MUTED)
-    _draw_lines(draw, 148, 1152, _wrap(str(summary["best_result"]), 44), BODY_BOLD, TEXT_DARK, 8)
+    _draw_lines(draw, 148, 1152, _clamp_lines(str(summary["best_result"]), 40, 2), BODY_BOLD, TEXT_DARK, 8)
 
     draw.text((118, 1262), "Generated from the Indonesian WMM dashboard", font=SMALL_FONT, fill=MUTED)
     return _to_png_bytes(image)
@@ -153,19 +183,25 @@ def runner_milestones_card(
 
     draw.text((118, 424), "MILESTONES", font=SECTION_FONT, fill=ACCENT)
     y = 470
-    for idx, row in milestones.head(6).iterrows():
-        draw.rounded_rectangle((118, y, 962, y + 98), radius=18, fill="#ffffff", outline="#eadcc7", width=2)
+    visible_milestones = milestones.head(5)
+    for _, row in visible_milestones.iterrows():
+        detail_lines = _clamp_lines(f"{row['Year']} • {row['Detail']}", 52, 2)
+        box_height = 76 + _text_height(draw, detail_lines, SMALL_FONT, 4)
+        draw.rounded_rectangle((118, y, 962, y + box_height), radius=18, fill="#ffffff", outline="#eadcc7", width=2)
         draw.text((146, y + 18), str(row["Milestone"]), font=SMALL_BOLD, fill=TEXT_DARK)
-        draw.text((146, y + 50), f"{row['Year']} • {row['Detail']}", font=SMALL_FONT, fill=MUTED)
-        y += 112
+        _draw_lines(draw, 146, y + 50, detail_lines, SMALL_FONT, MUTED, 4)
+        y += box_height + 14
 
     draw.text((118, y + 18), "BADGES", font=SECTION_FONT, fill=ACCENT)
     y += 62
-    for badge in badges[:6]:
-        draw.rounded_rectangle((118, y, 962, y + 76), radius=18, fill="#fff6eb", outline="#f0d6b4", width=2)
+    visible_badges = badges[:4]
+    for badge in visible_badges:
+        detail_lines = _clamp_lines(str(badge["detail"]), 38, 2)
+        box_height = 58 + _text_height(draw, detail_lines, SMALL_FONT, 4)
+        draw.rounded_rectangle((118, y, 962, y + box_height), radius=18, fill="#fff6eb", outline="#f0d6b4", width=2)
         draw.text((146, y + 16), str(badge["title"]), font=SMALL_BOLD, fill=ACCENT_DEEP)
-        draw.text((430, y + 16), str(badge["detail"]), font=SMALL_FONT, fill=MUTED)
-        y += 90
+        _draw_lines(draw, 430, y + 16, detail_lines, SMALL_FONT, MUTED, 4)
+        y += box_height + 14
 
     draw.text((118, 1262), "Share your visible WMM journey", font=SMALL_FONT, fill=MUTED)
     return _to_png_bytes(image)
@@ -186,21 +222,24 @@ def runner_goals_card(
     draw.text((118, 424), "NEXT GOALS", font=SECTION_FONT, fill=ACCENT)
     y = 470
     for _, row in goals.head(4).iterrows():
-        draw.rounded_rectangle((118, y, 962, y + 120), radius=20, fill="#ffffff", outline="#eadcc7", width=2)
+        why_lines = _clamp_lines(str(row["Why"]), 54, 2)
+        box_height = 96 + _text_height(draw, why_lines, SMALL_FONT, 4)
+        draw.rounded_rectangle((118, y, 962, y + box_height), radius=20, fill="#ffffff", outline="#eadcc7", width=2)
         draw.text((146, y + 18), str(row["Goal"]).upper(), font=SECTION_FONT, fill=MUTED)
-        draw.text((146, y + 48), str(row["Target"]), font=BODY_BOLD, fill=TEXT_DARK)
-        draw.text((560, y + 48), str(row["Gap"]), font=BODY_BOLD, fill=ACCENT)
-        _draw_lines(draw, 146, y + 84, _wrap(str(row["Why"]), 52), SMALL_FONT, MUTED, 6)
-        y += 142
+        target_lines = _clamp_lines(str(row["Target"]), 24, 2)
+        _draw_lines(draw, 146, y + 46, target_lines, BODY_BOLD, TEXT_DARK, 4)
+        draw.text((786, y + 50), str(row["Gap"]), font=BODY_BOLD, fill=ACCENT)
+        _draw_lines(draw, 146, y + 94, why_lines, SMALL_FONT, MUTED, 4)
+        y += box_height + 14
 
     draw.text((118, y + 12), "RARITY", font=SECTION_FONT, fill=ACCENT)
     y += 58
     for _, row in rarity.iterrows():
-        draw.rounded_rectangle((118, y, 962, y + 76), radius=18, fill="#fff6eb", outline="#f0d6b4", width=2)
-        draw.text((146, y + 16), str(row["Metric"]), font=SMALL_BOLD, fill=ACCENT_DEEP)
-        draw.text((360, y + 16), str(row["Standing"]), font=SMALL_BOLD, fill=ACCENT)
-        draw.text((560, y + 16), str(row["Rank"]), font=SMALL_FONT, fill=MUTED)
-        draw.text((820, y + 16), str(row["Value"]), font=SMALL_FONT, fill=MUTED)
-        y += 90
+        draw.rounded_rectangle((118, y, 962, y + 86), radius=18, fill="#fff6eb", outline="#f0d6b4", width=2)
+        draw.text((146, y + 14), str(row["Metric"]), font=SMALL_BOLD, fill=ACCENT_DEEP)
+        draw.text((320, y + 14), str(row["Standing"]), font=SMALL_BOLD, fill=ACCENT)
+        draw.text((146, y + 46), str(row["Rank"]), font=TINY_FONT, fill=MUTED)
+        draw.text((826, y + 30), str(row["Value"]), font=SMALL_BOLD, fill=MUTED)
+        y += 100
 
     return _to_png_bytes(image)
