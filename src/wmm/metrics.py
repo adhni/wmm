@@ -539,14 +539,19 @@ def _runner_directory(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def runner_options(df: pd.DataFrame) -> list[str]:
-    return _runner_directory(df)["Label"].tolist()
+    return _runner_directory(df)["Name"].tolist()
+
+
+def runner_option_labels(df: pd.DataFrame) -> dict[str, str]:
+    directory = _runner_directory(df)
+    return dict(zip(directory["Name"], directory["Label"]))
 
 
 def runner_search_options(df: pd.DataFrame, query: str, limit: int = 50) -> list[str]:
     directory = _runner_directory(df)
     search = query.strip().upper()
     if not search:
-        return directory["Label"].head(limit).tolist()
+        return directory["Name"].head(limit).tolist()
 
     escaped = re.escape(search)
     matches = directory.loc[directory["Name"].str.contains(escaped, case=False, regex=True)].copy()
@@ -559,11 +564,7 @@ def runner_search_options(df: pd.DataFrame, query: str, limit: int = 50) -> list
         ["Prefix_Match", "Word_Match", "Entries", "Stars", "Best_Time_Seconds", "Name"],
         ascending=[False, False, False, False, True, True],
     )
-    return matches["Label"].head(limit).tolist()
-
-
-def runner_name_from_option(option: str) -> str:
-    return option.rsplit(" (", 1)[0]
+    return matches["Name"].head(limit).tolist()
 
 
 def runner_summary(df: pd.DataFrame, runner_name: str) -> dict[str, str | int]:

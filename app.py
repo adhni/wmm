@@ -32,7 +32,7 @@ from src.wmm.metrics import (
     runner_growth,
     runner_marathon_breakdown,
     runner_milestones,
-    runner_name_from_option,
+    runner_option_labels,
     runner_next_goals,
     runner_search_options,
     runner_personal_story,
@@ -893,8 +893,13 @@ def main() -> None:
         if not options:
             st.warning("No runners match that search. Try a broader partial name.")
         else:
-            selected_runner_option = st.selectbox("Matching runners", options, index=0)
-            runner_name = runner_name_from_option(selected_runner_option)
+            runner_labels = runner_option_labels(df)
+            runner_name = st.selectbox(
+                "Matching runners",
+                options,
+                index=0,
+                format_func=lambda name: runner_labels.get(name, name),
+            )
             runner_roadmap = road_to_stars(df, marathons)
             runner_stats = runner_summary(df, runner_name)
             runner_df = runner_results(df, runner_name)
