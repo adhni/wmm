@@ -8,6 +8,8 @@ Live app: https://wmm-id.streamlit.app/
 
 - `raw_data.csv`: source data copied from the original `posts/WMM` project
 - Columns: `Marathon`, `Year`, `Name`, `Time`, `Place`
+- Current bundled coverage: World Marathon Majors results from `2012-2024`
+- Refresh expectation: replace `raw_data.csv` with the latest exported source data, then run the test suite before deploying
 
 ## Run Locally
 
