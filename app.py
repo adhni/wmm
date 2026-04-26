@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -75,6 +77,10 @@ MARATHON_COLOR = alt.Scale(domain=MARATHON_DOMAIN, range=MARATHON_RANGE)
 @st.cache_data
 def get_data() -> pd.DataFrame:
     return load_data()
+
+
+def escape_html(value: object) -> str:
+    return html.escape(str(value), quote=True)
 
 
 def inject_css() -> None:
@@ -292,19 +298,23 @@ def inject_css() -> None:
 
 
 def section_label(text: str) -> None:
-    st.markdown(f"<div class='section-kicker'>{text}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='section-kicker'>{escape_html(text)}</div>", unsafe_allow_html=True)
 
 
 def render_hero(metrics: dict[str, str | int], selected_marathons: list[str], selected_years: tuple[int, int]) -> None:
-    marathon_text = " / ".join(selected_marathons)
+    marathon_text = escape_html(" / ".join(selected_marathons))
+    rows = int(metrics["rows"])
+    latest_year = escape_html(metrics["latest_year"])
+    latest_entries = int(metrics["latest_entries"])
+    fastest_label = escape_html(metrics["fastest_label"])
     st.markdown(
         f"""
         <div class="hero-shell">
             <div class="hero-kicker">World Marathon Majors • Indonesia</div>
             <div class="hero-title">A richer pulse on Indonesian marathon travel.</div>
             <div class="hero-copy">
-                This view tracks <strong>{metrics['rows']:,}</strong> finishes across
-                <strong>{selected_years[0]}-{selected_years[1]}</strong>, blending volume,
+                This view tracks <strong>{rows:,}</strong> finishes across
+                <strong>{int(selected_years[0])}-{int(selected_years[1])}</strong>, blending volume,
                 speed, repeat participation, and runner-level progression instead of
                 stopping at static summary tables.
             </div>
@@ -315,11 +325,11 @@ def render_hero(metrics: dict[str, str | int], selected_marathons: list[str], se
                 </div>
                 <div class="hero-chip">
                     <div class="hero-chip-label">Latest Year Pulse</div>
-                    <div class="hero-chip-value">{metrics['latest_year']} • {metrics['latest_entries']:,} finishes</div>
+                    <div class="hero-chip-value">{latest_year} • {latest_entries:,} finishes</div>
                 </div>
                 <div class="hero-chip">
                     <div class="hero-chip-label">Fastest Result In View</div>
-                    <div class="hero-chip-value">{metrics['fastest_label']}</div>
+                    <div class="hero-chip-value">{fastest_label}</div>
                 </div>
             </div>
         </div>
@@ -332,9 +342,9 @@ def render_badge_card(title: str, winner: str, detail: str) -> None:
     st.markdown(
         f"""
         <div class="badge-card">
-            <div class="badge-title">{title}</div>
-            <div class="badge-winner">{winner}</div>
-            <div class="badge-detail">{detail}</div>
+            <div class="badge-title">{escape_html(title)}</div>
+            <div class="badge-winner">{escape_html(winner)}</div>
+            <div class="badge-detail">{escape_html(detail)}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -342,7 +352,7 @@ def render_badge_card(title: str, winner: str, detail: str) -> None:
 
 
 def render_story_card(text: str) -> None:
-    st.markdown(f"<div class='story-card'>{text}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='story-card'>{escape_html(text)}</div>", unsafe_allow_html=True)
 
 
 def render_passport_card(
@@ -351,28 +361,34 @@ def render_passport_card(
     road_row: pd.Series,
     story: str,
 ) -> None:
+    runner_name_html = escape_html(runner_name)
+    story_html = escape_html(story)
+    completed_majors = escape_html(road_row["Completed_Majors"])
+    missing_majors = escape_html(road_row["Missing_Majors"])
+    best_result = escape_html(summary["best_result"])
+    favorite_marathon = escape_html(summary["favorite_marathon"])
     st.markdown(
         f"""
         <div class="passport-card">
             <div class="passport-kicker">My WMM Passport</div>
-            <div class="passport-name">{runner_name}</div>
-            <div class="passport-copy">{story}</div>
+            <div class="passport-name">{runner_name_html}</div>
+            <div class="passport-copy">{story_html}</div>
             <div class="passport-grid">
                 <div class="passport-stat">
                     <div class="passport-stat-label">Completed</div>
-                    <div class="passport-stat-value">{road_row['Completed_Majors']}</div>
+                    <div class="passport-stat-value">{completed_majors}</div>
                 </div>
                 <div class="passport-stat">
                     <div class="passport-stat-label">Missing</div>
-                    <div class="passport-stat-value">{road_row['Missing_Majors']}</div>
+                    <div class="passport-stat-value">{missing_majors}</div>
                 </div>
                 <div class="passport-stat">
                     <div class="passport-stat-label">Best Result</div>
-                    <div class="passport-stat-value">{summary['best_result']}</div>
+                    <div class="passport-stat-value">{best_result}</div>
                 </div>
                 <div class="passport-stat">
                     <div class="passport-stat-label">Favorite Course</div>
-                    <div class="passport-stat-value">{summary['favorite_marathon']}</div>
+                    <div class="passport-stat-value">{favorite_marathon}</div>
                 </div>
             </div>
         </div>
@@ -385,10 +401,10 @@ def render_goal_card(goal: str, target: str, gap: str, why: str) -> None:
     st.markdown(
         f"""
         <div class="goal-card">
-            <div class="goal-card-title">{goal}</div>
-            <div class="goal-card-target">{target}</div>
-            <div class="goal-card-gap">{gap}</div>
-            <div class="goal-card-why">{why}</div>
+            <div class="goal-card-title">{escape_html(goal)}</div>
+            <div class="goal-card-target">{escape_html(target)}</div>
+            <div class="goal-card-gap">{escape_html(gap)}</div>
+            <div class="goal-card-why">{escape_html(why)}</div>
         </div>
         """,
         unsafe_allow_html=True,
