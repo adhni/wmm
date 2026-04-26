@@ -32,7 +32,7 @@ from src.wmm.metrics import (
     runner_growth,
     runner_marathon_breakdown,
     runner_milestones,
-    runner_name_from_option,
+    runner_option_labels,
     runner_next_goals,
     runner_search_options,
     runner_personal_story,
@@ -58,7 +58,7 @@ st.set_page_config(
 )
 
 
-alt.themes.enable("default")
+alt.theme.enable("default")
 
 
 TIME_LABEL_EXPR = (
@@ -760,7 +760,7 @@ def main() -> None:
             else:
                 st.dataframe(
                     one_away[["Name", "Entries", "WMM_PB", "Latest_Year", "Missing_Majors"]],
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                 )
         with right:
@@ -768,7 +768,7 @@ def main() -> None:
             st.subheader("Full road-to-stars table")
             st.dataframe(
                 roadmap[["Name", "Stars", "Status", "Entries", "WMM_PB", "Completed_Majors", "Missing_Majors", "Latest_Year"]],
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
             st.download_button(
@@ -794,23 +794,23 @@ def main() -> None:
         with left:
             section_label("Travel Depth")
             st.subheader("Most entries and most stars")
-            st.dataframe(entry_board, use_container_width=True, hide_index=True)
-            st.dataframe(stars_board, use_container_width=True, hide_index=True)
+            st.dataframe(entry_board, width="stretch", hide_index=True)
+            st.dataframe(stars_board, width="stretch", hide_index=True)
         with right:
             section_label("Durability")
             st.subheader("Most active years and sub-4 leaders")
-            st.dataframe(active_board, use_container_width=True, hide_index=True)
+            st.dataframe(active_board, width="stretch", hide_index=True)
             if sub4_board.empty:
                 st.info("No sub-4 finishes in the current filter.")
             else:
-                st.dataframe(sub4_board, use_container_width=True, hide_index=True)
+                st.dataframe(sub4_board, width="stretch", hide_index=True)
 
         section_label("Improvement")
         st.subheader("Biggest jumps from first visible year to best visible result")
         if improvement_board.empty:
             st.info("No measurable multi-race improvements in the current filter.")
         else:
-            st.dataframe(improvement_board, use_container_width=True, hide_index=True)
+            st.dataframe(improvement_board, width="stretch", hide_index=True)
 
     with profiles_tab:
         section_label("Course Identity")
@@ -855,7 +855,7 @@ def main() -> None:
 
         section_label("Top Performers")
         st.subheader("Fastest visible results on this course")
-        st.dataframe(profile_top, use_container_width=True, hide_index=True)
+        st.dataframe(profile_top, width="stretch", hide_index=True)
 
     with compare_tab:
         left, right = st.columns(2)
@@ -876,11 +876,11 @@ def main() -> None:
         with left:
             section_label("Course Leaders")
             st.subheader("Fastest result on each course")
-            st.dataframe(fastest_course, use_container_width=True, hide_index=True)
+            st.dataframe(fastest_course, width="stretch", hide_index=True)
         with right:
             section_label("Season Leaders")
             st.subheader("Fastest visible runner by year")
-            st.dataframe(fastest_year, use_container_width=True, hide_index=True)
+            st.dataframe(fastest_year, width="stretch", hide_index=True)
 
     with runner_tab:
         st.caption("Runner Lab searches the full dataset. The sidebar lens still shapes the other tabs.")
@@ -893,8 +893,13 @@ def main() -> None:
         if not options:
             st.warning("No runners match that search. Try a broader partial name.")
         else:
-            selected_runner_option = st.selectbox("Matching runners", options, index=0)
-            runner_name = runner_name_from_option(selected_runner_option)
+            runner_labels = runner_option_labels(df)
+            runner_name = st.selectbox(
+                "Matching runners",
+                options,
+                index=0,
+                format_func=lambda name: runner_labels.get(name, name),
+            )
             runner_roadmap = road_to_stars(df, marathons)
             runner_stats = runner_summary(df, runner_name)
             runner_df = runner_results(df, runner_name)
@@ -984,7 +989,7 @@ def main() -> None:
             left, right = st.columns([1.2, 1])
             with left:
                 st.caption("Visible results in the selected season")
-                st.dataframe(season_results, use_container_width=True, hide_index=True)
+                st.dataframe(season_results, width="stretch", hide_index=True)
             with right:
                 st.caption("Season highlights")
                 for highlight in list(runner_review["Highlights"]):
@@ -997,7 +1002,7 @@ def main() -> None:
             )
 
             with card_tab_1:
-                st.image(passport_png, use_container_width=True)
+                st.image(passport_png, width="stretch")
                 st.download_button(
                     "Download Passport Card",
                     data=passport_png,
@@ -1006,7 +1011,7 @@ def main() -> None:
                 )
 
             with card_tab_2:
-                st.image(journey_png, use_container_width=True)
+                st.image(journey_png, width="stretch")
                 st.download_button(
                     "Download Journey Card",
                     data=journey_png,
@@ -1015,7 +1020,7 @@ def main() -> None:
                 )
 
             with card_tab_3:
-                st.image(goals_png, use_container_width=True)
+                st.image(goals_png, width="stretch")
                 st.download_button(
                     "Download Next Goals Card",
                     data=goals_png,
@@ -1024,7 +1029,7 @@ def main() -> None:
                 )
 
             with card_tab_4:
-                st.image(review_png, use_container_width=True)
+                st.image(review_png, width="stretch")
                 st.download_button(
                     f"Download {selected_review_year} Year In Review Card",
                     data=review_png,
@@ -1050,17 +1055,17 @@ def main() -> None:
             with right:
                 section_label("Milestones")
                 st.subheader("Journey moments")
-                st.dataframe(runner_milestone_table, use_container_width=True, hide_index=True)
+                st.dataframe(runner_milestone_table, width="stretch", hide_index=True)
 
             left, right = st.columns([0.95, 1.05])
             with left:
                 section_label("Best Splits")
                 st.subheader("Best result by marathon")
-                st.dataframe(runner_best, use_container_width=True, hide_index=True)
+                st.dataframe(runner_best, width="stretch", hide_index=True)
             with right:
                 section_label("Career Log")
                 st.subheader("All visible results")
-                st.dataframe(runner_df, use_container_width=True, hide_index=True)
+                st.dataframe(runner_df, width="stretch", hide_index=True)
                 st.download_button(
                     "Download Runner Log",
                     data=to_csv_bytes(runner_df),
@@ -1088,11 +1093,11 @@ def main() -> None:
         with left:
             section_label("Stars Table")
             st.subheader("Runner-by-runner major coverage")
-            st.dataframe(stars, use_container_width=True, hide_index=True)
+            st.dataframe(stars, width="stretch", hide_index=True)
         with right:
             section_label("Raw View")
             st.subheader("Filtered raw data")
-            st.dataframe(filtered, use_container_width=True, hide_index=True)
+            st.dataframe(filtered, width="stretch", hide_index=True)
 
 
 if __name__ == "__main__":

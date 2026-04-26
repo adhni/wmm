@@ -82,21 +82,6 @@ def fastest_by_year(df: pd.DataFrame) -> pd.DataFrame:
     return fastest
 
 
-def top_repeat_runners(df: pd.DataFrame, limit: int = 15) -> pd.DataFrame:
-    counts = (
-        df.groupby("Name", as_index=False)
-        .agg(
-            Entries=("Name", "size"),
-            Unique_Marathons=("Marathon", "nunique"),
-            Best_Time_Seconds=("Time_seconds", "min"),
-        )
-        .sort_values(["Entries", "Unique_Marathons", "Best_Time_Seconds", "Name"], ascending=[False, False, True, True])
-        .head(limit)
-    )
-    counts["Best_Time"] = counts["Best_Time_Seconds"].map(format_seconds_to_hms)
-    return counts[["Name", "Entries", "Unique_Marathons", "Best_Time"]]
-
-
 def star_table(df: pd.DataFrame) -> pd.DataFrame:
     participation = (
         df.groupby(["Name", "Marathon"], as_index=False)
@@ -118,16 +103,6 @@ def star_table(df: pd.DataFrame) -> pd.DataFrame:
     result = stars.merge(pb[["Name", "WMM_PB"]], on="Name", how="left")
     ordered_columns = ["Name", "Stars", "WMM_PB"] + sorted(marathon_columns)
     return result[ordered_columns].sort_values(["Stars", "Name"], ascending=[False, True])
-
-
-def yearly_leaders(df: pd.DataFrame) -> pd.DataFrame:
-    leaders = (
-        df.sort_values("Time_seconds")
-        .groupby(["Year", "Marathon"], as_index=False)
-        .first()[["Year", "Marathon", "Name", "Time", "Place"]]
-        .sort_values(["Year", "Time"])
-    )
-    return leaders
 
 
 def latest_year_snapshot(df: pd.DataFrame) -> tuple[int, pd.DataFrame]:
@@ -538,15 +513,16 @@ def _runner_directory(df: pd.DataFrame) -> pd.DataFrame:
     return counts
 
 
-def runner_options(df: pd.DataFrame) -> list[str]:
-    return _runner_directory(df)["Label"].tolist()
+def runner_option_labels(df: pd.DataFrame) -> dict[str, str]:
+    directory = _runner_directory(df)
+    return dict(zip(directory["Name"], directory["Label"]))
 
 
 def runner_search_options(df: pd.DataFrame, query: str, limit: int = 50) -> list[str]:
     directory = _runner_directory(df)
     search = query.strip().upper()
     if not search:
-        return directory["Label"].head(limit).tolist()
+        return directory["Name"].head(limit).tolist()
 
     escaped = re.escape(search)
     matches = directory.loc[directory["Name"].str.contains(escaped, case=False, regex=True)].copy()
@@ -559,11 +535,7 @@ def runner_search_options(df: pd.DataFrame, query: str, limit: int = 50) -> list
         ["Prefix_Match", "Word_Match", "Entries", "Stars", "Best_Time_Seconds", "Name"],
         ascending=[False, False, False, False, True, True],
     )
-    return matches["Label"].head(limit).tolist()
-
-
-def runner_name_from_option(option: str) -> str:
-    return option.rsplit(" (", 1)[0]
+    return matches["Name"].head(limit).tolist()
 
 
 def runner_summary(df: pd.DataFrame, runner_name: str) -> dict[str, str | int]:
