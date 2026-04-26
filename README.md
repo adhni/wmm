@@ -18,6 +18,12 @@ pip install -r requirements.txt
 python3 -m streamlit run app.py
 ```
 
+## Test
+
+```bash
+python3 -m unittest discover -s tests
+```
+
 ## Current Dashboard
 
 - Filter by marathon and year range
