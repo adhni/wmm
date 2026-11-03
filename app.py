@@ -13,6 +13,8 @@ from src.wmm.cards import (
     runner_year_review_card,
 )
 from src.wmm.data import load_data
+from src.wmm.catalog import JOURNEYS, RACES, TARGET_YEAR
+from src.wmm.coverage import comparable_years, load_coverage
 from src.wmm.metrics import (
     active_years_leaderboard,
     entry_leaderboard,
@@ -69,8 +71,8 @@ TIME_LABEL_EXPR = (
     "floor((datum.value % 3600)/60)"
 )
 
-MARATHON_DOMAIN = ["Berlin", "Boston", "Chicago", "London", "NYC"]
-MARATHON_RANGE = ["#b33f24", "#ce7f3c", "#164b63", "#638d8b", "#221f3b"]
+MARATHON_DOMAIN = list(RACES)
+MARATHON_RANGE = [race["color"] for race in RACES.values()]
 MARATHON_COLOR = alt.Scale(domain=MARATHON_DOMAIN, range=MARATHON_RANGE)
 
 
@@ -632,12 +634,15 @@ def main() -> None:
     inject_css()
 
     df = get_data()
-    marathons = sorted(df["Marathon"].unique())
+    marathons = sorted(RACES)
+    coverage = load_coverage()
     year_min = int(df["Year"].min())
-    year_max = int(df["Year"].max())
+    year_max = max(TARGET_YEAR, int(df["Year"].max()))
 
     with st.sidebar:
         st.header("Lens")
+        journey_name = st.selectbox("Star journey", list(JOURNEYS))
+        journey_marathons = list(JOURNEYS[journey_name])
         selected_marathons = st.multiselect("Marathons", marathons, default=marathons)
         selected_years = st.slider(
             "Year range",
@@ -656,6 +661,19 @@ def main() -> None:
         st.warning("Select at least one marathon.")
         return
 
+    selected_coverage = coverage.loc[
+        coverage["Marathon"].isin(selected_marathons)
+        & coverage["Year"].between(selected_years[0], selected_years[1])
+    ]
+    st.caption(
+        f"Results currently loaded: {int(df['Year'].min())}–{int(df['Year'].max())}. "
+        f"Coverage target: {TARGET_YEAR}. Journeys use full recorded history."
+    )
+    if not selected_coverage["Status"].isin(["complete", "verified zero finishers", "event not held"]).all():
+        st.warning("Coverage is incomplete or not yet audited for some selected editions. Missing results do not mean zero finishers.")
+    with st.expander("Edition coverage and sources"):
+        st.dataframe(selected_coverage, width="stretch", hide_index=True)
+
     filtered = filtered_data(
         df,
         selected_marathons=selected_marathons,
@@ -673,7 +691,9 @@ def main() -> None:
     ranking = marathon_rankings(filtered)
     spectrum = finish_time_spectrum(filtered, bin_minutes=time_bin_minutes)
     stars_by_count = star_distribution(filtered)
-    roadmap = road_to_stars(filtered, selected_marathons)
+    full_roadmap = road_to_stars(df, journey_marathons)
+    full_roadmap["Journey"] = journey_name
+    roadmap = full_roadmap.loc[full_roadmap["Name"].isin(filtered["Name"])].copy()
     roadmap_status = star_status_summary(roadmap)
     missing_pressure = missing_major_pressure(roadmap)
     badge_cards = hall_of_fame_cards(filtered)
@@ -685,10 +705,15 @@ def main() -> None:
     fastest_course = fastest_by_marathon(filtered)
     fastest_year = fastest_by_year(filtered)
     latest_year, latest_snapshot = latest_year_snapshot(filtered)
-    stars = star_table(filtered)
-    profile_marathon = st.session_state.get("profile_marathon", selected_marathons[0])
-    if profile_marathon not in selected_marathons:
-        profile_marathon = selected_marathons[0]
+    stars = star_table(df, journey_marathons)
+    stars["Journey"] = journey_name
+    stars["Target_Count"] = len(journey_marathons)
+    stars = stars.loc[stars["Name"].isin(filtered["Name"])]
+    profile_marathons = sorted(filtered["Marathon"].unique())
+    profile_marathon = st.session_state.get("profile_marathon", profile_marathons[0])
+    if profile_marathon not in profile_marathons:
+        profile_marathon = profile_marathons[0]
+        st.session_state["profile_marathon"] = profile_marathon
     profile_summary_data = marathon_profile_summary(filtered, profile_marathon)
     profile_growth = growth.loc[growth["Marathon"] == profile_marathon]
     profile_medians = medians.loc[medians["Marathon"] == profile_marathon]
@@ -703,7 +728,7 @@ def main() -> None:
     metric_4.metric(
         f"{metrics['latest_year']} Entries",
         f"{metrics['latest_entries']:,}",
-        delta=f"{metrics['entry_delta']:+,}",
+        delta=f"{metrics['entry_delta']:+,}" if comparable_years(coverage, selected_marathons, metrics["latest_year"]) and selected_years[0] <= metrics["latest_year"] - 1 else None,
     )
     metric_5.metric("View Range", metrics["year_range"])
 
@@ -719,7 +744,7 @@ def main() -> None:
         left, right = st.columns([1.05, 0.95])
         with left:
             section_label("Latest-Year Snapshot")
-            st.subheader(f"Who owned the latest visible edition: {latest_year}")
+            st.subheader(f"Recorded participation in {latest_year}")
             st.altair_chart(snapshot_chart(latest_snapshot, latest_year), use_container_width=True)
         with right:
             section_label("Popularity Drift")
@@ -737,20 +762,22 @@ def main() -> None:
             st.altair_chart(star_chart(stars_by_count), use_container_width=True)
 
     with stars_tab:
+        st.subheader(journey_name)
         complete_count = int((roadmap["Status"] == "Complete").sum())
         one_away_count = int((roadmap["Status"] == "One away").sum())
         close_count = int((roadmap["Status"] == "In striking distance").sum())
         median_stars = float(roadmap["Stars"].median()) if not roadmap.empty else 0.0
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Complete", complete_count)
+        c1.metric("All races recorded", complete_count)
         c2.metric("One Away", one_away_count)
         c3.metric("In Striking Distance", close_count)
         c4.metric("Median Stars", f"{median_stars:.1f}")
 
         render_story_card(
-            "This section treats stars as a journey inside the current filter lens. "
-            "It surfaces who has finished the set, who is one race away, and which course is the most common missing final piece."
+            f"{journey_name} requires {len(journey_marathons)} fixed races. "
+            "Progress uses full recorded history for runners in your selected lens. "
+            "Missing results can reflect gaps in our data. This is not official medal verification."
         )
 
         left, right = st.columns(2)
@@ -760,7 +787,7 @@ def main() -> None:
             st.altair_chart(status_chart(roadmap_status), use_container_width=True)
         with right:
             section_label("Final Missing Step")
-            st.subheader("Which marathon 4-star runners still need")
+            st.subheader(f"Which race {len(journey_marathons) - 1}-star runners still need")
             if missing_pressure.empty:
                 st.info("No one-away runners in the current filter.")
             else:
@@ -833,8 +860,8 @@ def main() -> None:
         st.subheader("Profile one major at a time")
         profile_marathon = st.selectbox(
             "Choose a marathon profile",
-            selected_marathons,
-            index=selected_marathons.index(profile_marathon),
+            profile_marathons,
+            index=profile_marathons.index(profile_marathon),
             key="profile_marathon",
         )
         profile_summary_data = marathon_profile_summary(filtered, profile_marathon)
@@ -916,18 +943,18 @@ def main() -> None:
                 index=0,
                 format_func=lambda name: runner_labels.get(name, name),
             )
-            runner_roadmap = road_to_stars(df, marathons)
+            runner_roadmap = full_roadmap
             runner_stats = runner_summary(df, runner_name)
             runner_df = runner_results(df, runner_name)
             runner_best = runner_best_by_marathon(df, runner_name)
             runner_progress = runner_progression(df, runner_name)
             runner_breakdown = runner_marathon_breakdown(df, runner_name)
             runner_road = runner_roadmap.loc[runner_roadmap["Name"] == runner_name].iloc[0]
-            runner_milestone_table = runner_milestones(df, runner_name, marathons)
-            runner_story = runner_personal_story(df, runner_name, marathons)
+            runner_milestone_table = runner_milestones(df, runner_name, journey_marathons)
+            runner_story = runner_personal_story(df, runner_name, journey_marathons)
             runner_rarity = runner_rarity_summary(df, runner_name)
-            runner_goals = runner_next_goals(df, runner_name, marathons)
-            runner_badge_list = runner_badges(df, runner_name, marathons)
+            runner_goals = runner_next_goals(df, runner_name, journey_marathons)
+            runner_badge_list = runner_badges(df, runner_name, journey_marathons)
             review_year_options = sorted(runner_df["Year"].unique(), reverse=True)
             runner_slug = runner_name.lower().replace(" ", "_")
             passport_png = runner_passport_card(runner_name, runner_stats, runner_road, runner_story)
@@ -935,6 +962,9 @@ def main() -> None:
             goals_png = runner_goals_card(runner_name, runner_goals, runner_rarity)
 
             st.markdown(f"## {runner_name}")
+            st.caption(f"{journey_name}: {int(runner_road['Stars'])}/{len(journey_marathons)} races recorded. Runner histories are matched by name; namesakes and spelling differences can affect progress.")
+            if runner_df.duplicated(["Marathon", "Year"], keep=False).any():
+                st.warning("This name has multiple results in the same race/year. The history may combine namesakes or unresolved source records.")
             current_lens_rows = int((filtered["Name"] == runner_name).sum())
             if current_lens_rows:
                 st.caption(
@@ -948,7 +978,7 @@ def main() -> None:
 
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Entries", runner_stats["entries"])
-            c2.metric("Stars", runner_stats["stars"])
+            c2.metric("Races recorded", runner_stats["stars"])
             c3.metric("Years Active", runner_stats["years_active"])
             c4.metric("Best Time", runner_stats["best_time"])
             c5.metric("Best Indo Rank", f"#{runner_stats['best_indo_place']}")
@@ -987,7 +1017,7 @@ def main() -> None:
                 index=0,
                 key=f"review-year-{runner_name}",
             )
-            runner_review = runner_year_in_review(df, runner_name, int(selected_review_year), marathons)
+            runner_review = runner_year_in_review(df, runner_name, int(selected_review_year), journey_marathons)
             season_results = (
                 runner_df.loc[runner_df["Year"] == selected_review_year, ["Marathon", "Time", "Indo_Place", "Place"]]
                 .reset_index(drop=True)
@@ -1090,6 +1120,15 @@ def main() -> None:
                 )
 
     with data_tab:
+        section_label("Coverage")
+        st.dataframe(selected_coverage, width="stretch", hide_index=True)
+        refreshed = coverage["Retrieved_At"].dropna()
+        st.caption(f"Latest source retrieval: {refreshed.max()}" if not refreshed.empty else "Legacy dataset: source retrieval dates are unknown.")
+        st.download_button("Download Coverage", data=to_csv_bytes(coverage), file_name="wmm_coverage.csv", mime="text/csv")
+        conflicts = df.loc[df.duplicated(["Marathon", "Year", "Name"], keep=False)]
+        with st.expander(f"Names requiring review ({len(conflicts)} result rows)"):
+            st.caption("Multiple results under the same name, race, and year are retained for review; they are not automatically merged or removed.")
+            st.dataframe(conflicts, width="stretch", hide_index=True)
         section_label("Downloads")
         st.subheader("Take the filtered dataset out of the app")
         st.download_button(
@@ -1108,7 +1147,7 @@ def main() -> None:
         left, right = st.columns(2)
         with left:
             section_label("Stars Table")
-            st.subheader("Runner-by-runner major coverage")
+            st.subheader(f"{journey_name}: full recorded history")
             st.dataframe(stars, width="stretch", hide_index=True)
         with right:
             section_label("Raw View")

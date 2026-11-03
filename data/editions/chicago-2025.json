@@ -1,0 +1,42 @@
+{
+  "Marathon": "Chicago",
+  "Year": 2025,
+  "Edition_Year": 2025,
+  "Status": "partial",
+  "Imported_Count": 344,
+  "Expected_Count": 344,
+  "Source_URL": "https://www.worldmarathonmajors.com/six-star/claim-stars",
+  "Retrieved_At": "2026-11-03T01:34:11.883939+00:00",
+  "Note": "All 344 nationality=INA Six Star records in Abbott's public result index retrieved. Race-organiser completeness and placing scope not independently verified.",
+  "Source_SHA256": "1d53f2522a6dbb6c486268b68c0d59de54d74d770f4b4d404b0d6e648c124045",
+  "Config": {
+    "marathon": "Chicago",
+    "edition_year": 2025,
+    "race_date": "2025-10-12",
+    "source_url": "https://www.worldmarathonmajors.com/six-star/claim-stars",
+    "country_field_type": "nationality",
+    "time_basis": "official",
+    "place_basis": "unknown",
+    "columns": {
+      "name": "Name",
+      "country": "Country",
+      "time": "Time",
+      "place": "Place",
+      "result_id": "Result_ID",
+      "status": "Status",
+      "division": "Division"
+    },
+    "status_values": [
+      "FINISHED"
+    ],
+    "division_values": [
+      "RUNNING"
+    ],
+    "marathon_only": true,
+    "expected_count": 344,
+    "completeness_verified": false,
+    "note": "All 344 nationality=INA Six Star records in Abbott's public result index retrieved. Race-organiser completeness and placing scope not independently verified.",
+    "search_url": "https://gxo3mfmtr4.execute-api.eu-west-1.amazonaws.com/raceresults/_search",
+    "source_count": 344
+  }
+}

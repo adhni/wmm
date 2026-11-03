@@ -1,0 +1,146 @@
+[
+  {
+    "provider": "abbott",
+    "marathon": "Berlin",
+    "edition_year": 2025,
+    "race_date": "2025-09-21"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Berlin",
+    "edition_year": 2026,
+    "race_date": "2026-09-27"
+  },
+  {
+    "provider": "boston",
+    "marathon": "Boston",
+    "edition_year": 2025,
+    "race_date": "2025-04-21"
+  },
+  {
+    "provider": "boston",
+    "marathon": "Boston",
+    "edition_year": 2026,
+    "race_date": "2026-04-20"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Chicago",
+    "edition_year": 2025,
+    "race_date": "2025-10-12"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Chicago",
+    "edition_year": 2026,
+    "race_date": "2026-10-11"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "London",
+    "edition_year": 2025,
+    "race_date": "2025-04-27"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "London",
+    "edition_year": 2026,
+    "race_date": "2026-04-26"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "NYC",
+    "edition_year": 2025,
+    "race_date": "2025-11-02"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "NYC",
+    "edition_year": 2026,
+    "race_date": "2026-11-01"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Sydney",
+    "edition_year": 2025,
+    "race_date": "2025-08-31"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Sydney",
+    "edition_year": 2026,
+    "race_date": "2026-08-30"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2013,
+    "race_date": "2013-02-24"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2014,
+    "race_date": "2014-02-23"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2015,
+    "race_date": "2015-02-22"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2016,
+    "race_date": "2016-02-28"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2017,
+    "race_date": "2017-02-26"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2018,
+    "race_date": "2018-02-25"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2019,
+    "race_date": "2019-03-03"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2021,
+    "race_date": "2022-03-06"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2023,
+    "race_date": "2023-03-05"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2024,
+    "race_date": "2024-03-03"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2025,
+    "race_date": "2025-03-02"
+  },
+  {
+    "provider": "abbott",
+    "marathon": "Tokyo",
+    "edition_year": 2026,
+    "race_date": "2026-03-01"
+  }
+]

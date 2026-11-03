@@ -143,7 +143,7 @@ def runner_passport_card(
 
     draw.text((118, 116), "WMM RUNNER PASSPORT", font=SECTION_FONT, fill=ACCENT_GOLD)
     draw.text((118, 158), runner_name, font=TITLE_FONT, fill=TEXT_LIGHT)
-    draw.text((118, 262), f"{summary['stars']} stars • {summary['entries']} finishes • {summary['years_active']} active years", font=BODY_FONT, fill=TEXT_LIGHT)
+    draw.text((118, 262), f"{road_row['Stars']}/{road_row['Target_Count']} journey races • {summary['entries']} finishes", font=BODY_FONT, fill=TEXT_LIGHT)
     _draw_lines(draw, 118, 316, story_lines, SMALL_FONT, "#f1e4d8", 8)
 
     _pill(draw, (118, 430, 470, 560), "Best Time", str(summary["best_time"]))
@@ -165,7 +165,8 @@ def runner_passport_card(
     draw.text((148, 1114), "Peak result", font=SECTION_FONT, fill=MUTED)
     _draw_lines(draw, 148, 1152, _clamp_lines(str(summary["best_result"]), 40, 2), BODY_BOLD, TEXT_DARK, 8)
 
-    draw.text((118, 1262), "Generated from the Indonesian WMM dashboard", font=SMALL_FONT, fill=MUTED)
+    journey = str(road_row.get("Journey", "Recorded journey"))
+    draw.text((118, 1262), f"{journey} | Recorded results, not medal verification", font=TINY_FONT, fill=MUTED)
     return _to_png_bytes(image)
 
 

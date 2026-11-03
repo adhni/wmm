@@ -1,0 +1,41 @@
+{
+  "Marathon": "Boston",
+  "Year": 2025,
+  "Edition_Year": 2025,
+  "Status": "complete",
+  "Imported_Count": 60,
+  "Expected_Count": 60,
+  "Source_URL": "https://registration.baa.org/2025/cf/Media/iframe_ResultsSearch.cfm?mode=advanceddetail",
+  "Retrieved_At": "2026-11-03T01:37:06.038471+00:00",
+  "Note": "CSV reconciled to 60 official citizenship=Indonesia search records; 60 running finishers retained. Unneeded address and demographic columns omitted.",
+  "Source_SHA256": "924ab60380fe343a69c491995118733c4f076d4d5b697fcf26685a6b41f3a40a",
+  "Config": {
+    "marathon": "Boston",
+    "edition_year": 2025,
+    "race_date": "2025-04-21",
+    "source_url": "https://registration.baa.org/2025/cf/Media/iframe_ResultsSearch.cfm?mode=advanceddetail",
+    "country_field_type": "citizenship",
+    "time_basis": "official",
+    "place_basis": "overall",
+    "columns": {
+      "name": "Name",
+      "country": "Country",
+      "time": "Time",
+      "place": "Place",
+      "result_id": "Result_ID",
+      "status": "Status",
+      "division": "Division"
+    },
+    "status_values": [
+      "FINISHED"
+    ],
+    "division_values": [
+      "RUNNING"
+    ],
+    "marathon_only": true,
+    "expected_count": 60,
+    "completeness_verified": true,
+    "source_count": 60,
+    "note": "CSV reconciled to 60 official citizenship=Indonesia search records; 60 running finishers retained. Unneeded address and demographic columns omitted."
+  }
+}

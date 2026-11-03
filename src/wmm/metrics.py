@@ -5,7 +5,7 @@ import re
 
 import pandas as pd
 
-from .data import format_seconds_delta, format_seconds_to_hm, format_seconds_to_hms
+from .data import format_place, format_seconds_delta, format_seconds_to_hm, format_seconds_to_hms
 
 
 def filtered_data(
@@ -66,7 +66,7 @@ def fastest_by_marathon(df: pd.DataFrame) -> pd.DataFrame:
     fastest = (
         df.sort_values("Time_seconds")
         .groupby("Marathon", as_index=False)
-        .first()[["Marathon", "Year", "Name", "Time", "Place"]]
+        .head(1)[["Marathon", "Year", "Name", "Time", "Place"]]
         .sort_values(["Time", "Marathon"])
     )
     return fastest
@@ -76,19 +76,21 @@ def fastest_by_year(df: pd.DataFrame) -> pd.DataFrame:
     fastest = (
         df.sort_values("Time_seconds")
         .groupby("Year", as_index=False)
-        .first()[["Year", "Marathon", "Name", "Time", "Place"]]
+        .head(1)[["Year", "Marathon", "Name", "Time", "Place"]]
         .sort_values("Year")
     )
     return fastest
 
 
-def star_table(df: pd.DataFrame) -> pd.DataFrame:
+def star_table(df: pd.DataFrame, marathon_universe: list[str] | None = None) -> pd.DataFrame:
     participation = (
         df.groupby(["Name", "Marathon"], as_index=False)
         .agg(Years=("Year", lambda s: ", ".join(str(y) for y in sorted(set(s)))))
     )
 
     stars = participation.pivot(index="Name", columns="Marathon", values="Years").fillna("")
+    if marathon_universe is not None:
+        stars = stars.reindex(columns=marathon_universe, fill_value="")
     stars = stars.reset_index()
     marathon_columns = [col for col in stars.columns if col != "Name"]
     stars["Stars"] = (stars[marathon_columns] != "").sum(axis=1)
@@ -134,9 +136,13 @@ def marathon_rankings(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def finish_time_spectrum(df: pd.DataFrame, bin_minutes: int = 15) -> pd.DataFrame:
-    min_seconds = 2 * 3600 + 30 * 60
-    max_seconds = 8 * 3600
+    if bin_minutes <= 0:
+        raise ValueError("Spectrum bin size must be positive")
+    if df.empty:
+        return pd.DataFrame(columns=["Marathon", "Time_Bin", "Runner_Count"])
     step = bin_minutes * 60
+    min_seconds = int(df["Time_seconds"].min() // step) * step
+    max_seconds = (int(df["Time_seconds"].max() // step) + 1) * step
     bins = list(range(min_seconds, max_seconds + step, step))
     labels = [
         f"{format_seconds_to_hm(left)}-{format_seconds_to_hm(right)}"
@@ -194,6 +200,7 @@ def road_to_stars(df: pd.DataFrame, marathon_universe: list[str]) -> pd.DataFram
             {
                 "Name": name,
                 "Stars": stars,
+                "Target_Count": len(universe),
                 "Entries": len(group),
                 "Latest_Year": int(group["Year"].max()),
                 "WMM_PB_Seconds": int(group["Time_seconds"].min()),
@@ -461,7 +468,7 @@ def runner_milestones(df: pd.DataFrame, runner_name: str, marathon_universe: lis
     seen: set[str] = set()
     reached: set[int] = set()
     for year in sorted(runner_df["Year"].unique()):
-        seen.update(runner_df.loc[runner_df["Year"] == year, "Marathon"].unique())
+        seen.update(set(runner_df.loc[runner_df["Year"] == year, "Marathon"]) & set(marathon_universe))
         for threshold in range(2, len(marathon_universe) + 1):
             if len(seen) >= threshold and threshold not in reached:
                 milestones.append(
@@ -560,7 +567,7 @@ def runner_summary(df: pd.DataFrame, runner_name: str) -> dict[str, str | int]:
         "favorite_marathon": str(favorite["Marathon"]),
         "best_result": (
             f"{best['Marathon']} {int(best['Year'])} | "
-            f"indo #{int(best['Indo_Place'])} | place {int(best['Place'])}"
+            f"indo #{int(best['Indo_Place'])} | source place {format_place(best['Place'])}"
         ),
         "latest_result": (
             f"{latest['Marathon']} {int(latest['Year'])} | "
@@ -575,17 +582,17 @@ def runner_personal_story(
     marathon_universe: list[str],
 ) -> str:
     summary = runner_summary(df, runner_name)
-    road = road_to_stars(df, marathon_universe)
+    road = road_to_stars(df.loc[df["Name"].eq(runner_name)], marathon_universe)
     road_row = road.loc[road["Name"] == runner_name].iloc[0]
     best = df.loc[df["Name"] == runner_name].nsmallest(1, "Time_seconds").iloc[0]
 
     if road_row["Missing_Majors"] == "None":
-        road_text = "You have completed the full visible major set."
+        road_text = "All races in this journey are recorded in this dataset."
     else:
-        road_text = f"You are missing {road_row['Missing_Majors']} to complete this lens."
+        road_text = f"Results for {road_row['Missing_Majors']} are not recorded for this journey."
 
     return (
-        f"You are a {summary['stars']}-star runner with {summary['entries']} visible finishes "
+        f"You have {int(road_row['Stars'])} of {len(marathon_universe)} journey races recorded, with {summary['entries']} visible finishes "
         f"across {summary['years_active']} active years. Your best visible day was "
         f"{best['Marathon']} {int(best['Year'])} in {best['Time']}, where you ranked "
         f"indo #{int(best['Indo_Place'])}. {summary['favorite_marathon']} is the course "
@@ -646,7 +653,7 @@ def runner_badges(
 ) -> list[dict[str, str]]:
     runner_df = df.loc[df["Name"] == runner_name].copy()
     summary = runner_summary(df, runner_name)
-    road = road_to_stars(df, marathon_universe)
+    road = road_to_stars(runner_df, marathon_universe)
     road_row = road.loc[road["Name"] == runner_name].iloc[0]
     breakdown = runner_marathon_breakdown(df, runner_name)
     badges: list[dict[str, str]] = [
@@ -688,7 +695,7 @@ def runner_badges(
         badges.append(
             {
                 "title": "Full Set",
-                "detail": "Completed every visible major in this lens",
+                "detail": f"All {len(marathon_universe)} journey races recorded in this dataset",
             }
         )
     if (runner_df["Time_seconds"] < 4 * 3600).any():
@@ -730,7 +737,7 @@ def runner_next_goals(
 ) -> pd.DataFrame:
     runner_df = df.loc[df["Name"] == runner_name].copy()
     summary = runner_summary(df, runner_name)
-    road = road_to_stars(df, marathon_universe)
+    road = road_to_stars(runner_df, marathon_universe)
     road_row = road.loc[road["Name"] == runner_name].iloc[0]
     best_seconds = int(runner_df["Time_seconds"].min())
     best_indo_place = int(runner_df["Indo_Place"].min())
@@ -770,8 +777,8 @@ def runner_next_goals(
             target_label = label
             break
     if target_seconds is None:
-        target_seconds = max(2 * 3600 + 30 * 60, (best_seconds // 300 - 1) * 300)
-        target_label = "a new PB"
+        target_seconds = max(1, ((best_seconds - 1) // 300) * 300)
+        target_label = f"a new PB ({format_seconds_to_hms(target_seconds)})"
 
     goals.append(
         {
@@ -844,9 +851,9 @@ def runner_year_in_review(
     season_best = season_df.nsmallest(1, "Time_seconds").iloc[0]
     season_best_seconds = int(season_best["Time_seconds"])
     best_indo_place = int(season_df["Indo_Place"].min())
-    raced_marathons = [marathon for marathon in marathon_universe if marathon in set(season_df["Marathon"].unique())]
-    new_majors = [marathon for marathon in raced_marathons if marathon not in set(prior_df["Marathon"].unique())]
-    stars_after = int(through_year_df["Marathon"].nunique())
+    raced_marathons = sorted(season_df["Marathon"].unique())
+    new_majors = [marathon for marathon in marathon_universe if marathon in raced_marathons and marathon not in set(prior_df["Marathon"].unique())]
+    stars_after = len(set(through_year_df["Marathon"]) & set(marathon_universe))
     missing_after = [marathon for marathon in marathon_universe if marathon not in set(through_year_df["Marathon"].unique())]
 
     if prior_df.empty:
@@ -955,10 +962,11 @@ def runner_year_in_review(
 
 
 def runner_results(df: pd.DataFrame, runner_name: str) -> pd.DataFrame:
+    metadata_columns = [column for column in ("Race_Date", "Edition_Year", "Source_URL", "Country_Field", "Time_Basis", "Place_Basis") if column in df.columns]
     runner_df = (
         df.loc[
             df["Name"] == runner_name,
-            ["Year", "Marathon", "Time", "Indo_Place", "Place", "Time_seconds"],
+            ["Year", "Marathon", "Time", "Indo_Place", "Place", "Time_seconds"] + metadata_columns,
         ]
         .sort_values(["Year", "Marathon", "Time_seconds"])
         .reset_index(drop=True)
@@ -971,7 +979,7 @@ def runner_best_by_marathon(df: pd.DataFrame, runner_name: str) -> pd.DataFrame:
     best = (
         runner_df.sort_values("Time_seconds")
         .groupby("Marathon", as_index=False)
-        .first()[["Marathon", "Year", "Time", "Indo_Place", "Place"]]
+        .head(1)[["Marathon", "Year", "Time", "Indo_Place", "Place"]]
         .sort_values(["Time", "Marathon"])
         .reset_index(drop=True)
     )
