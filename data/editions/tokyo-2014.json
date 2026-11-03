@@ -1,0 +1,42 @@
+{
+  "Marathon": "Tokyo",
+  "Year": 2014,
+  "Edition_Year": 2014,
+  "Status": "partial",
+  "Imported_Count": 16,
+  "Expected_Count": 16,
+  "Source_URL": "https://www.worldmarathonmajors.com/six-star/claim-stars",
+  "Retrieved_At": "2026-11-03T01:34:43.637709+00:00",
+  "Note": "All 16 nationality=INA Six Star records in Abbott's public result index retrieved. Race-organiser completeness and placing scope not independently verified.",
+  "Source_SHA256": "9b3d554ebae06174a3086a71524bb59e2ba888a1e1e6fc8e73628ea66840be8d",
+  "Config": {
+    "marathon": "Tokyo",
+    "edition_year": 2014,
+    "race_date": "2014-02-23",
+    "source_url": "https://www.worldmarathonmajors.com/six-star/claim-stars",
+    "country_field_type": "nationality",
+    "time_basis": "official",
+    "place_basis": "unknown",
+    "columns": {
+      "name": "Name",
+      "country": "Country",
+      "time": "Time",
+      "place": "Place",
+      "result_id": "Result_ID",
+      "status": "Status",
+      "division": "Division"
+    },
+    "status_values": [
+      "FINISHED"
+    ],
+    "division_values": [
+      "RUNNING"
+    ],
+    "marathon_only": true,
+    "expected_count": 16,
+    "completeness_verified": false,
+    "note": "All 16 nationality=INA Six Star records in Abbott's public result index retrieved. Race-organiser completeness and placing scope not independently verified.",
+    "search_url": "https://gxo3mfmtr4.execute-api.eu-west-1.amazonaws.com/raceresults/_search",
+    "source_count": 16
+  }
+}

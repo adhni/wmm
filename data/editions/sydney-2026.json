@@ -1,0 +1,42 @@
+{
+  "Marathon": "Sydney",
+  "Year": 2026,
+  "Edition_Year": 2026,
+  "Status": "partial",
+  "Imported_Count": 1576,
+  "Expected_Count": 1576,
+  "Source_URL": "https://www.worldmarathonmajors.com/six-star/claim-stars",
+  "Retrieved_At": "2026-11-03T01:34:40.457810+00:00",
+  "Note": "All 1576 nationality=INA Six Star records in Abbott's public result index retrieved. Race-organiser completeness and placing scope not independently verified.",
+  "Source_SHA256": "8047f77fb6cd0400ff1f69dff008d5c6fb44fb05070f89329efb00da383e31e1",
+  "Config": {
+    "marathon": "Sydney",
+    "edition_year": 2026,
+    "race_date": "2026-08-30",
+    "source_url": "https://www.worldmarathonmajors.com/six-star/claim-stars",
+    "country_field_type": "nationality",
+    "time_basis": "official",
+    "place_basis": "unknown",
+    "columns": {
+      "name": "Name",
+      "country": "Country",
+      "time": "Time",
+      "place": "Place",
+      "result_id": "Result_ID",
+      "status": "Status",
+      "division": "Division"
+    },
+    "status_values": [
+      "FINISHED"
+    ],
+    "division_values": [
+      "RUNNING"
+    ],
+    "marathon_only": true,
+    "expected_count": 1576,
+    "completeness_verified": false,
+    "note": "All 1576 nationality=INA Six Star records in Abbott's public result index retrieved. Race-organiser completeness and placing scope not independently verified.",
+    "search_url": "https://gxo3mfmtr4.execute-api.eu-west-1.amazonaws.com/raceresults/_search",
+    "source_count": 1576
+  }
+}

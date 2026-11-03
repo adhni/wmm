@@ -97,11 +97,11 @@ class LoadDataTest(unittest.TestCase):
         csv_text = "\n".join(
             [
                 "Marathon,Year,Name,Time,Place",
-                "Tokyo,2024,Alice Runner,03:10:00,101",
+                "Honolulu,2024,Alice Runner,03:10:00,101",
             ]
         )
 
-        with self.assertRaisesRegex(ValueError, "Unexpected marathon values: Tokyo"):
+        with self.assertRaisesRegex(ValueError, "Unexpected marathon values: Honolulu"):
             self.load_csv(csv_text)
 
 

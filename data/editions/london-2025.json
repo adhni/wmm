@@ -1,0 +1,42 @@
+{
+  "Marathon": "London",
+  "Year": 2025,
+  "Edition_Year": 2025,
+  "Status": "partial",
+  "Imported_Count": 246,
+  "Expected_Count": 246,
+  "Source_URL": "https://www.worldmarathonmajors.com/six-star/claim-stars",
+  "Retrieved_At": "2026-11-03T01:34:16.444496+00:00",
+  "Note": "All 246 nationality=INA Six Star records in Abbott's public result index retrieved. Race-organiser completeness and placing scope not independently verified.",
+  "Source_SHA256": "151549d862a8f05e9e990f75f7a4cb8907d50236819fc7bbe0ef56484f2e91bb",
+  "Config": {
+    "marathon": "London",
+    "edition_year": 2025,
+    "race_date": "2025-04-27",
+    "source_url": "https://www.worldmarathonmajors.com/six-star/claim-stars",
+    "country_field_type": "nationality",
+    "time_basis": "official",
+    "place_basis": "unknown",
+    "columns": {
+      "name": "Name",
+      "country": "Country",
+      "time": "Time",
+      "place": "Place",
+      "result_id": "Result_ID",
+      "status": "Status",
+      "division": "Division"
+    },
+    "status_values": [
+      "FINISHED"
+    ],
+    "division_values": [
+      "RUNNING"
+    ],
+    "marathon_only": true,
+    "expected_count": 246,
+    "completeness_verified": false,
+    "note": "All 246 nationality=INA Six Star records in Abbott's public result index retrieved. Race-organiser completeness and placing scope not independently verified.",
+    "search_url": "https://gxo3mfmtr4.execute-api.eu-west-1.amazonaws.com/raceresults/_search",
+    "source_count": 246
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "marathon": "Tokyo",
+  "edition_year": 2026,
+  "race_date": "2026-03-01",
+  "source_url": "https://provider.example/official-results",
+  "country_field_type": "nationality",
+  "time_basis": "net",
+  "place_basis": "overall",
+  "columns": {
+    "name": "Name",
+    "country": "Nationality",
+    "time": "Net Time",
+    "place": "Overall Place",
+    "result_id": "Bib",
+    "status": "Status",
+    "distance": "Distance",
+    "division": "Division"
+  },
+  "status_values": ["FINISHED"],
+  "distance_values": ["MARATHON"],
+  "division_values": ["RUNNING"],
+  "expected_count": null,
+  "completeness_verified": false,
+  "note": "Example only: replace headers, source URL, race details, and filter values with the actual export's values."
+}
